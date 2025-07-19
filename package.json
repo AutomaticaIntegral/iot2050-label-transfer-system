@@ -1,0 +1,23 @@
+{
+  "name": "iot2050-simulator",
+  "version": "1.0.0",
+  "description": "Simulador del dispositivo IOT2050 para TCP Label Transfer de Adisseo",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "check": "node check-system.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "socket.io": "^4.5.4"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  },
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}

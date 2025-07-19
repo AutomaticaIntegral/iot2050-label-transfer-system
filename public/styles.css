@@ -1,0 +1,204 @@
+/* 
+   Estilos para el Simulador IOT2050
+   TCP Label Transfer - Adisseo
+   Automática Integral - 2025
+*/
+
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.status-card {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-indicator {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.status-indicator.running i {
+    color: #2ecc71;
+    animation: pulse 1.5s infinite;
+}
+
+.status-indicator.stopped i {
+    color: #e74c3c;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.activity-log {
+    height: 300px;
+    overflow-y: auto;
+    font-size: 0.85rem;
+    background-color: #f8f9fa;
+}
+
+/* Estilos para los logs del sistema */
+.logs-container {
+    height: 400px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+    padding: 0;
+}
+
+.log-section {
+    margin-bottom: 0;
+    border-bottom: 1px solid #444;
+}
+
+.log-category {
+    background-color: #333;
+    color: #fff;
+    padding: 8px 15px;
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-left: 4px solid #666;
+}
+
+#serverLogs .log-category { border-left-color: #28a745; }
+#plcLogs .log-category { border-left-color: #007bff; }
+#adiLogs .log-category { border-left-color: #6f42c1; }
+#printerLogs .log-category { border-left-color: #17a2b8; }
+
+.log-entries {
+    padding: 0 10px;
+    font-size: 0.85rem;
+}
+
+.log-entry {
+    padding: 4px 5px;
+    margin: 2px 0;
+    border-radius: 3px;
+    display: flex;
+    align-items: flex-start;
+}
+
+.log-timestamp {
+    color: #999;
+    margin-right: 10px;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+}
+
+.log-message {
+    word-break: break-word;
+}
+
+.log-level-error { background-color: rgba(220, 53, 69, 0.2); color: #ff6b6b; }
+.log-level-warn { background-color: rgba(255, 193, 7, 0.2); color: #ffd43b; }
+.log-level-success { background-color: rgba(40, 167, 69, 0.2); color: #51cf66; }
+.log-level-info { background-color: transparent; }
+
+.activity-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-time {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.activity-item.tcp {
+    border-left: 3px solid #3498db;
+}
+
+.activity-item.plc {
+    border-left: 3px solid #f39c12;
+}
+
+.activity-item.print {
+    border-left: 3px solid #9b59b6;
+}
+
+.activity-item.error {
+    border-left: 3px solid #e74c3c;
+    background-color: #fee;
+}
+
+.label-content {
+    height: 300px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.85rem;
+    padding: 0;
+    background-color: #f8f9fa;
+}
+
+.label-content pre {
+    margin: 0;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.table th, .table td {
+    vertical-align: middle;
+}
+
+/* Estados de las impresoras */
+.badge.connected {
+    background-color: #2ecc71;
+}
+
+.badge.disconnected {
+    background-color: #e74c3c;
+}
+
+.badge.ready {
+    background-color: #2ecc71; /* Verde */
+}
+
+.badge.printing {
+    background-color: #3498db; /* Azul */
+    animation: pulse 1.5s infinite;
+}
+
+.badge.error {
+    background-color: #e74c3c; /* Rojo */
+}
+
+.badge.offline {
+    background-color: #95a5a6; /* Gris */
+}
+
+.badge.warning {
+    background-color: #f39c12; /* Naranja */
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .card-header h5 {
+        font-size: 1rem;
+    }
+    
+    .status-indicator {
+        font-size: 1.5rem;
+    }
+    
+    .activity-log, .label-content {
+        height: 200px;
+    }
+}

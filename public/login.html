@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TCP Label Transfer - Sistema de Gestión</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #333;
+    }
+    .login-container {
+      background-color: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+      width: 400px;
+      backdrop-filter: blur(10px);
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .login-header .logo {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #4CAF50, #2E7D32);
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+      font-weight: bold;
+    }
+    .login-header h1 {
+      color: #2c3e50;
+      margin: 0 0 10px 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .login-header p {
+      color: #7f8c8d;
+      margin: 0;
+      font-size: 16px;
+    }
+    .login-form {
+      display: flex;
+      flex-direction: column;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #555;
+      font-size: 14px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e1e8ed;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 16px;
+      transition: border-color 0.3s ease;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #4CAF50;
+    }
+    .login-button {
+      background: linear-gradient(135deg, #4CAF50, #2E7D32);
+      color: white;
+      border: none;
+      padding: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 10px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .login-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    }
+    .error-message {
+      color: #e74c3c;
+      margin-top: 15px;
+      text-align: center;
+      display: none;
+      padding: 10px;
+      background-color: #fdf2f2;
+      border: 1px solid #f5c6cb;
+      border-radius: 4px;
+    }
+    .features {
+      margin-top: 25px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+    .features h3 {
+      font-size: 14px;
+      color: #666;
+      margin: 0 0 10px 0;
+      text-align: center;
+      font-weight: 600;
+    }
+    .features ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 12px;
+      color: #888;
+    }
+    .features li {
+      padding: 2px 0;
+      display: flex;
+      align-items: center;
+    }
+    .features li:before {
+      content: "✓";
+      color: #4CAF50;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+    .company-info {
+      text-align: center;
+      margin-top: 30px;
+      font-size: 12px;
+      color: #999;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-header">
+      <div class="logo">TCP</div>
+      <h1>TCP Label Transfer</h1>
+      <p>Sistema de Gestión de Etiquetas</p>
+    </div>
+    <form class="login-form" id="loginForm">
+      <div class="form-group">
+        <label for="username">Usuario</label>
+        <input type="text" id="username" name="username" required autofocus placeholder="Ingrese su usuario">
+      </div>
+      <div class="form-group">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password" required placeholder="Ingrese su contraseña">
+      </div>
+      <button type="submit" class="login-button">Iniciar Sesión</button>
+    </form>
+    <div class="error-message" id="errorMessage">
+      Usuario o contraseña incorrectos
+    </div>
+    <div class="features">
+      <h3>Características del Sistema</h3>
+      <ul>
+        <li>Monitoreo en tiempo real</li>
+        <li>Gestión de etiquetas ZPL</li>
+        <li>Control de impresoras</li>
+        <li>Interfaz web moderna</li>
+      </ul>
+    </div>
+    <div class="company-info">
+      &copy; 2025 Automática Integral<br>
+      Versión 2.0 - Sistema Profesional
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = data.redirect || '/';
+        } else {
+          document.getElementById('errorMessage').style.display = 'block';
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('errorMessage').style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>

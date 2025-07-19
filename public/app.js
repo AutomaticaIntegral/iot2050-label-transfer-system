@@ -1,0 +1,507 @@
+/**
+ * JavaScript para el monitor web integrado con logs detallados
+ * TCP Label Transfer - Cliente: Adisseo
+ * Automática Integral - 2025
+ */
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Inicializando aplicación de monitoreo...');
+    
+    // Variables globales
+    let currentFilter = 'all';
+    let currentLevelFilter = null;
+    let autoScroll = true;
+    let labels = [];
+
+    // Estadísticas
+    let statsData = {
+        labels: 0,
+        connections: 0,
+        errors: 0,
+        commands: 0,
+        plcConnections: 0,
+        plcCommands: 0,
+        plcErrors: 0
+    };
+
+    // Elementos DOM principales
+    const logs = document.getElementById('logs');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const autoscrollCheck = document.getElementById('autoscrollCheck');
+    const clearLogsBtn = document.getElementById('clearLogsBtn');
+    const labelsTable = document.getElementById('labelsTable');
+    const labelContentPanel = document.getElementById('labelContentPanel');
+    const activityLog = document.getElementById('activityLog');
+    const labelSelect = document.getElementById('labelSelect');
+    const configForm = document.getElementById('configForm');
+    const currentWaitForCommand = document.getElementById('currentWaitForCommand');
+
+    // Estadísticas DOM
+    const tcpLabelsReceived = document.getElementById('tcpLabelsReceived');
+    const tcpConnections = document.getElementById('tcpConnections');
+    const tcpErrors = document.getElementById('tcpErrors');
+    const tcpLastLabel = document.getElementById('tcpLastLabel');
+    const plcConnections = document.getElementById('plcConnections');
+    const plcCommandsReceived = document.getElementById('plcCommandsReceived');
+    const plcErrors = document.getElementById('plcErrors');
+    const plcLastCommand = document.getElementById('plcLastCommand');
+
+    // Iniciar Socket.io para comunicación en tiempo real
+    const socket = io();
+
+    // Conexión establecida con el servidor
+    socket.on('connect', () => {
+        console.log('Conectado al servidor Socket.io');
+        if (statusIndicator) {
+            statusIndicator.className = 'badge bg-success';
+            statusIndicator.innerText = 'Conectado';
+        }
+        addSystemMessage('Conexión establecida con el servidor', 'success');
+
+        // Solicitar configuración actual
+        fetch('/api/config')
+            .then(response => response.json())
+            .then(config => {
+                updateConfigDisplay(config);
+            })
+            .catch(error => console.error('Error al obtener configuración:', error));
+
+        // Cargar etiquetas
+        loadLabels();
+    });
+
+    // Desconexión del servidor
+    socket.on('disconnect', () => {
+        console.log('Desconectado del servidor Socket.io');
+        if (statusIndicator) {
+            statusIndicator.className = 'badge bg-danger';
+            statusIndicator.innerText = 'Desconectado';
+        }
+        addSystemMessage('Conexión perdida con el servidor', 'error');
+    });
+
+    // Recibir un log del servidor
+    socket.on('log', (logData) => {
+        addLogEntry(logData);
+        
+        // Actualizar estadísticas según el tipo de log
+        updateStatsFromLog(logData);
+        
+        // Auto-scroll si está activado
+        if (autoScroll && logs) {
+            logs.scrollTop = logs.scrollHeight;
+        }
+    });
+
+    // Recibir información de etiqueta
+    socket.on('labelReceived', function(labelData) {
+        console.log('Nueva etiqueta recibida:', labelData);
+        
+        // Actualizar estadísticas
+        statsData.labels++;
+        updateStatsDisplay();
+        
+        // Actualizar última etiqueta
+        if (tcpLastLabel) {
+            tcpLastLabel.textContent = labelData.id;
+        }
+        
+        // Añadir a actividad reciente
+        addActivity(`Nueva etiqueta recibida: ${labelData.gs1}`);
+        
+        // Actualizar tabla de etiquetas
+        loadLabels();
+    });
+
+    // Actualizar estadísticas basado en logs recibidos
+    function updateStatsFromLog(logData) {
+        const { category, message, level } = logData;
+        
+        // Actualizar contadores según el mensaje
+        if (category === 'PLC') {
+            if (message.includes('Nueva conexión')) {
+                statsData.plcConnections++;
+            } else if (message.includes('comando')) {
+                statsData.plcCommands++;
+            } else if (level === 'error') {
+                statsData.plcErrors++;
+            }
+        } else if (category === 'ADI') {
+            if (message.includes('Nueva conexión')) {
+                statsData.connections++;
+            } else if (level === 'error') {
+                statsData.errors++;
+            }
+        }
+        
+        // Actualizar display
+        updateStatsDisplay();
+    }
+
+    // Actualizar display de estadísticas
+    function updateStatsDisplay() {
+        if (tcpLabelsReceived) tcpLabelsReceived.textContent = statsData.labels;
+        if (tcpConnections) tcpConnections.textContent = statsData.connections;
+        if (tcpErrors) tcpErrors.textContent = statsData.errors;
+        if (plcConnections) plcConnections.textContent = statsData.plcConnections;
+        if (plcCommandsReceived) plcCommandsReceived.textContent = statsData.plcCommands;
+        if (plcErrors) plcErrors.textContent = statsData.plcErrors;
+    }
+
+    // Añadir un mensaje de sistema (no del servidor)
+    function addSystemMessage(message, level = 'info') {
+        const timestamp = new Date().toISOString();
+        addLogEntry({
+            timestamp,
+            category: 'SYSTEM',
+            level,
+            message
+        });
+    }
+
+    // Añadir entrada de log
+    function addLogEntry(logData) {
+        if (!logs) return;
+        
+        const { timestamp, category, message, level } = logData;
+        
+        // Filtrar si es necesario
+        if (currentFilter !== 'all' && category !== currentFilter) return;
+        if (currentLevelFilter && level !== currentLevelFilter) return;
+        
+        // Crear elemento para el log
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${level || 'info'}`;
+        
+        // Formatear timestamp
+        const date = new Date(timestamp);
+        const timeString = date.toLocaleTimeString();
+        
+        // Añadir contenido
+        logEntry.innerHTML = `
+            <span class="log-time">[${timeString}]</span>
+            <span class="log-category">[${category}]</span>
+            <span class="log-message">${message}</span>
+        `;
+        
+        // Añadir al contenedor
+        logs.appendChild(logEntry);
+        
+        // Auto-scroll
+        if (autoScroll) {
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        // Limitar número de logs (mantener solo los últimos 500)
+        while (logs.children.length > 500) {
+            logs.removeChild(logs.firstChild);
+        }
+    }
+
+    // Añadir actividad a la lista de actividades recientes
+    function addActivity(message) {
+        if (!activityLog) return;
+        
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        
+        const activityItem = document.createElement('div');
+        activityItem.className = 'activity-item';
+        activityItem.innerHTML = `
+            <div class="activity-time">${timeString}</div>
+            <div class="activity-message">${message}</div>
+        `;
+        
+        // Insertar al principio
+        if (activityLog.firstChild) {
+            activityLog.insertBefore(activityItem, activityLog.firstChild);
+        } else {
+            activityLog.appendChild(activityItem);
+        }
+        
+        // Eliminar mensaje "sin actividad" si existe
+        const noActivityMsg = activityLog.querySelector('.text-muted');
+        if (noActivityMsg) {
+            activityLog.removeChild(noActivityMsg);
+        }
+        
+        // Limitar a 10 actividades
+        while (activityLog.children.length > 10) {
+            activityLog.removeChild(activityLog.lastChild);
+        }
+    }
+
+    // Cargar etiquetas de la API
+    function loadLabels() {
+        fetch('/api/labels')
+            .then(response => response.json())
+            .then(data => {
+                labels = data;
+                updateLabelsTable(data);
+                updateLabelSelect(data);
+            })
+            .catch(error => {
+                console.error('Error al cargar etiquetas:', error);
+                addSystemMessage(`Error al cargar etiquetas: ${error.message}`, 'error');
+            });
+    }
+
+    // Actualizar tabla de etiquetas
+    function updateLabelsTable(labelsData) {
+        if (!labelsTable) return;
+        
+        if (labelsData && labelsData.length > 0) {
+            let html = '';
+            
+            labelsData.forEach(label => {
+                const date = new Date(label.timestamp);
+                const formattedDate = date.toLocaleString();
+                
+                html += `
+                    <tr>
+                        <td>${label.id}</td>
+                        <td>${formattedDate}</td>
+                        <td>${label.size} bytes</td>
+                        <td>
+                            <button class="btn btn-sm btn-info view-label" data-id="${label.id}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-success print-label" data-id="${label.id}">
+                                <i class="bi bi-printer"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            labelsTable.innerHTML = html;
+            
+            // Añadir event listeners a los botones
+            document.querySelectorAll('.view-label').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const labelId = this.getAttribute('data-id');
+                    viewLabel(labelId);
+                });
+            });
+            
+            document.querySelectorAll('.print-label').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const labelId = this.getAttribute('data-id');
+                    printLabel(labelId);
+                });
+            });
+        } else {
+            labelsTable.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center py-3 text-muted">
+                        <i class="bi bi-inbox"></i> No hay etiquetas recibidas
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    // Actualizar selector de etiquetas
+    function updateLabelSelect(labelsData) {
+        if (!labelSelect) return;
+        
+        // Limpiar opciones existentes excepto la primera
+        while (labelSelect.options.length > 1) {
+            labelSelect.remove(1);
+        }
+        
+        // Añadir nuevas opciones
+        if (labelsData && labelsData.length > 0) {
+            labelsData.forEach(label => {
+                const option = document.createElement('option');
+                option.value = label.id;
+                option.textContent = `${label.id} - ${new Date(label.timestamp).toLocaleTimeString()}`;
+                labelSelect.appendChild(option);
+            });
+        }
+    }
+
+    // Ver detalles de una etiqueta
+    function viewLabel(labelId) {
+        const label = labels.find(l => l.id === labelId);
+        
+        if (label && labelContentPanel) {
+            labelContentPanel.innerHTML = `
+                <div class="p-3">
+                    <h6 class="border-bottom pb-2">Detalles de Etiqueta #${label.id}</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Fecha:</strong> ${new Date(label.timestamp).toLocaleString()}</p>
+                            <p><strong>Tamaño:</strong> ${label.size} bytes</p>
+                            <p><strong>Contador:</strong> ${label.counter}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Tipo:</strong> ${label.type || 'No especificado'}</p>
+                            <p><strong>Copias:</strong> ${label.copies || 1}</p>
+                            <p><strong>Estado:</strong> ${label.printed ? 'Impresa' : 'No impresa'}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <h6>Código GS1:</h6>
+                        <div class="bg-light p-2 rounded">${label.gs1}</div>
+                    </div>
+                    <div class="mt-3">
+                        <h6>Contenido ZPL:</h6>
+                        <pre class="bg-dark text-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">${label.zpl}</pre>
+                    </div>
+                </div>
+            `;
+            
+            addActivity(`Visualizada etiqueta: ${label.id}`);
+        } else {
+            labelContentPanel.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-file-earmark-text"></i> Etiqueta no encontrada
+                </div>
+            `;
+        }
+    }
+
+    // Enviar etiqueta a imprimir
+    function printLabel(labelId) {
+        const label = labels.find(l => l.id === labelId);
+        
+        if (!label) {
+            addSystemMessage(`Etiqueta #${labelId} no encontrada`, 'error');
+            return;
+        }
+        
+        // Abrir modal de impresión
+        const printModal = new bootstrap.Modal(document.getElementById('labelModal'));
+        const modalLabelContent = document.getElementById('modalLabelContent');
+        const modalPrintBtn = document.getElementById('modalPrintBtn');
+        
+        if (modalLabelContent) {
+            modalLabelContent.textContent = label.zpl;
+        }
+        
+        if (modalPrintBtn) {
+            modalPrintBtn.onclick = function() {
+                // Implementación de impresión
+                addSystemMessage(`Imprimiendo etiqueta #${labelId}...`, 'info');
+                printModal.hide();
+            };
+        }
+        
+        printModal.show();
+    }
+
+    // Actualizar display de configuración
+    function updateConfigDisplay(config) {
+        if (!currentWaitForCommand) return;
+        
+        let displayText = 'Esperando comando PLC: ';
+        switch (config.waitForCommand) {
+            case 'none':
+                displayText += 'No esperar (respuesta inmediata)';
+                break;
+            case 'any':
+                displayText += 'Cualquier comando';
+                break;
+            default:
+                displayText += config.waitForCommand;
+        }
+        
+        currentWaitForCommand.textContent = displayText;
+        
+        // Actualizar selector si existe
+        const waitForCommandSelect = document.getElementById('waitForCommand');
+        if (waitForCommandSelect) {
+            waitForCommandSelect.value = config.waitForCommand;
+        }
+    }
+
+    // Eventos DOM
+    if (autoscrollCheck) {
+        autoscrollCheck.addEventListener('change', function() {
+            autoScroll = this.checked;
+        });
+    }
+
+    if (clearLogsBtn) {
+        clearLogsBtn.addEventListener('click', function() {
+            if (logs) {
+                logs.innerHTML = '';
+                addSystemMessage('Logs limpiados', 'info');
+            }
+        });
+    }
+
+    // Filtros de log
+    document.querySelectorAll('.dropdown-item[data-filter]').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            currentFilter = this.getAttribute('data-filter');
+            
+            // Actualizar UI para mostrar filtro activo
+            document.querySelectorAll('.dropdown-item[data-filter]').forEach(i => {
+                i.classList.remove('active');
+            });
+            this.classList.add('active');
+            
+            addSystemMessage(`Filtro aplicado: ${currentFilter}`, 'info');
+        });
+    });
+
+    // Filtros por nivel
+    document.querySelectorAll('.dropdown-item[data-level]').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            currentLevelFilter = this.getAttribute('data-level');
+            
+            // Actualizar UI para mostrar filtro activo
+            document.querySelectorAll('.dropdown-item[data-level]').forEach(i => {
+                i.classList.remove('active');
+            });
+            this.classList.add('active');
+            
+            addSystemMessage(`Filtro por nivel aplicado: ${currentLevelFilter}`, 'info');
+        });
+    });
+
+    // Formulario de configuración
+    if (configForm) {
+        configForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const waitForCommand = document.getElementById('waitForCommand').value;
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ waitForCommand })
+            })
+            .then(response => response.json())
+            .then(result => {
+                addSystemMessage(`Configuración actualizada: Esperar comando ${result.config.waitForCommand}`, 'success');
+                updateConfigDisplay(result.config);
+            })
+            .catch(error => {
+                console.error('Error al actualizar configuración:', error);
+                addSystemMessage(`Error al actualizar configuración: ${error.message}`, 'error');
+            });
+        });
+    }
+
+    // Botón de actualizar etiquetas
+    const refreshLabelsBtn = document.getElementById('refreshLabelsBtn');
+    if (refreshLabelsBtn) {
+        refreshLabelsBtn.addEventListener('click', function() {
+            loadLabels();
+            addActivity('Lista de etiquetas actualizada manualmente');
+        });
+    }
+
+    // Ping periódico para mantener la conexión activa
+    setInterval(function() {
+        if (socket.connected) {
+            console.log('Ping al servidor...');
+        }
+    }, 30000);
+});

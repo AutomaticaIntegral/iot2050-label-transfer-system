@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Avanzado - Adisseo TCP Label Transfer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --info-color: #3498db;
+            --bg-dark: #1e1e1e;
+            --text-light: #ecf0f1;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .header-custom {
+            background: linear-gradient(135deg, var(--primary-color), #34495e);
+            color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .status-card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .status-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            border-left: 4px solid var(--info-color);
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .log-container {
+            height: 500px;
+            overflow-y: auto;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            position: relative;
+        }
+
+        .log-entry {
+            padding: 4px 12px;
+            margin: 2px 0;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .log-entry:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .log-entry.success { border-left-color: var(--success-color); }
+        .log-entry.error { border-left-color: var(--danger-color); background-color: rgba(231,76,60,0.1); }
+        .log-entry.warn { border-left-color: var(--warning-color); }
+        .log-entry.info { border-left-color: var(--info-color); }
+
+        .log-timestamp { color: #5dade2; font-weight: 600; }
+        .log-category { 
+            color: #f39c12; 
+            font-weight: bold;
+            background: rgba(243,156,18,0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .log-message { color: #ecf0f1; }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online { background-color: var(--success-color); }
+        .status-offline { background-color: var(--danger-color); }
+        .status-warning { background-color: var(--warning-color); }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .connection-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            margin: 10px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .flow-step {
+            text-align: center;
+            flex: 1;
+            position: relative;
+        }
+
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: var(--info-color);
+            margin: 0 10px;
+        }
+
+        .timeline-entry {
+            border-left: 3px solid var(--info-color);
+            padding-left: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .timeline-entry::before {
+            content: '';
+            position: absolute;
+            left: -7px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--info-color);
+        }
+
+        .timeline-entry.success::before { background: var(--success-color); }
+        .timeline-entry.error::before { background: var(--danger-color); }
+        .timeline-entry.warning::before { background: var(--warning-color); }
+
+        .alert-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+            max-width: 350px;
+        }
+
+        .diagnostic-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: var(--primary-color);
+        }
+
+        .card-header-custom {
+            background: linear-gradient(90deg, var(--primary-color), #34495e);
+            color: white;
+            border-radius: 8px 8px 0 0 !important;
+        }
+
+        .btn-custom {
+            background: linear-gradient(45deg, var(--primary-color), #34495e);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-custom:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            color: white;
+        }
+
+        .filter-badge {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-badge:hover {
+            transform: scale(1.05);
+        }
+
+        .config-section {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Panel de Alertas -->
+    <div id="alertPanel" class="alert-panel"></div>
+
+    <!-- Header -->
+    <header class="header-custom p-4">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-1">
+                        <i class="bi bi-cpu-fill me-2"></i>
+                        Monitor Avanzado - TCP Label Transfer
+                    </h1>
+                    <p class="mb-0 opacity-75">
+                        <i class="bi bi-building"></i> Adisseo | 
+                        <i class="bi bi-gear-fill"></i> Automática Integral | 
+                        <i class="bi bi-calendar3"></i> 2025
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-inline-block me-3">
+                        <span class="status-indicator" id="connectionStatus"></span>
+                        <span id="connectionStatusText">Conectando...</span>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-light btn-sm" onclick="exportLogs()">
+                            <i class="bi bi-download"></i> Exportar
+                        </button>
+                        <button class="btn btn-outline-light btn-sm" onclick="refreshSystem()">
+                            <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> Actualizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container-fluid mt-4">
+        <!-- Pestañas de navegación -->
+        <ul class="nav nav-pills mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
+                    <i class="bi bi-speedometer2"></i> Resumen
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logs-tab" data-bs-toggle="pill" data-bs-target="#logs-panel" type="button">
+                    <i class="bi bi-journal-text"></i> Logs Avanzados
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="flow-tab" data-bs-toggle="pill" data-bs-target="#flow-panel" type="button">
+                    <i class="bi bi-diagram-3"></i> Flujo ADI-PLC
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="labels-tab" data-bs-toggle="pill" data-bs-target="#labels-panel" type="button">
+                    <i class="bi bi-tags"></i> Etiquetas
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="config-tab" data-bs-toggle="pill" data-bs-target="#config-panel" type="button">
+                    <i class="bi bi-gear"></i> Configuración
+                </button>
+            </li>
+        </ul>
+
+        <!-- Contenido de las pestañas -->
+        <div class="tab-content" id="mainTabContent">
+            <!-- Pestaña Resumen -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="row">
+                    <!-- Métricas principales -->
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="metric-card">
+                            <div class="metric-value" id="normalCounter">0000</div>
+                            <div class="text-muted">Contador NORMAL</div>
+                            <small class="text-success" id="normalCounterStatus">Último: -</small>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="metric-card" style="border-left-color: var(--warning-color);">
+                            <div class="metric-value" id="rfidCounter">0000</div>
+                            <div class="text-muted">Contador RFID</div>
+                            <small class="text-warning" id="rfidCounterStatus">Último: -</small>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="metric-card" style="border-left-color: var(--success-color);">
+                            <div class="metric-value" id="totalLabels">0</div>
+                            <div class="text-muted">Etiquetas Totales</div>
+                            <small class="text-info" id="labelsBreakdown">N: 0 | R: 0</small>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="metric-card" style="border-left-color: var(--danger-color);">
+                            <div class="metric-value" id="plcCommands">0</div>
+                            <div class="text-muted">Comandos PLC</div>
+                            <small class="text-danger" id="lastPlcCommand">CMD: -</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección de Contadores Detallada -->
+                <div class="row mb-4">
+                    <div class="col-lg-12">
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-123"></i> Control de Contadores PLC
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <!-- Contador NORMAL -->
+                                    <div class="col-md-6">
+                                        <div class="card border-success">
+                                            <div class="card-header bg-success text-white">
+                                                <h6 class="mb-0">
+                                                    <i class="bi bi-tag"></i> Etiquetas NORMALES
+                                                </h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="text-center mb-3">
+                                                    <div class="display-4 text-success" id="normalCounterDisplay">0000</div>
+                                                    <small class="text-muted">Último contador usado</small>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <div class="text-center">
+                                                            <div class="h5 mb-1" id="normalLabelsCount">0</div>
+                                                            <small class="text-muted">Etiquetas</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="text-center">
+                                                            <div class="h5 mb-1" id="normalPrintsCount">0</div>
+                                                            <small class="text-muted">Impresiones</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <hr>
+                                                <div class="small">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span>🏷️ Etiqueta ADI:</span>
+                                                        <span id="lastNormalLabelAdi" class="font-monospace text-info">-</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span>⚙️ Contador PLC:</span>
+                                                        <span id="lastNormalLabel" class="font-monospace text-success">-</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span>Último CMD 10:</span>
+                                                        <span id="lastCmd10Time">-</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between">
+                                                        <span>Estado impresora:</span>
+                                                        <span class="badge bg-secondary" id="normalPrinterStatus">Desconocido</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Contador RFID -->
+                                    <div class="col-md-6">
+                                        <div class="card border-warning">
+                                            <div class="card-header bg-warning text-dark">
+                                                <h6 class="mb-0">
+                                                    <i class="bi bi-broadcast"></i> Etiquetas RFID
+                                                </h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="text-center mb-3">
+                                                    <div class="display-4 text-warning" id="rfidCounterDisplay">0000</div>
+                                                    <small class="text-muted">Último contador usado</small>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <div class="text-center">
+                                                            <div class="h5 mb-1" id="rfidLabelsCount">0</div>
+                                                            <small class="text-muted">Etiquetas</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="text-center">
+                                                            <div class="h5 mb-1" id="rfidPrintsCount">0</div>
+                                                            <small class="text-muted">Impresiones</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <hr>
+                                                <div class="small">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span>🏷️ Etiqueta ADI:</span>
+                                                        <span id="lastRfidLabelAdi" class="font-monospace text-info">-</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span>⚙️ Contador PLC:</span>
+                                                        <span id="lastRfidLabel" class="font-monospace text-warning">-</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span>Último CMD 11:</span>
+                                                        <span id="lastCmd11Time">-</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between">
+                                                        <span>Estado impresora:</span>
+                                                        <span class="badge bg-secondary" id="rfidPrinterStatus">Desconocido</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estado de servicios -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-diagram-2"></i> Flujo de Comunicación en Tiempo Real
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="connection-flow">
+                                    <div class="flow-step">
+                                        <div class="status-indicator" id="adiStatus"></div>
+                                        <h6 class="mt-2">ADI System</h6>
+                                        <small class="text-muted">Puerto 9110</small>
+                                        <div id="adiLastActivity" class="small text-success mt-1">Inactivo</div>
+                                    </div>
+                                    <div class="flow-arrow">
+                                        <i class="bi bi-arrow-right" id="adiArrow"></i>
+                                    </div>
+                                    <div class="flow-step">
+                                        <div class="status-indicator" id="iotStatus"></div>
+                                        <h6 class="mt-2">IoT Sistema</h6>
+                                        <small class="text-muted">Procesando</small>
+                                        <div id="iotLastActivity" class="small text-info mt-1">Esperando</div>
+                                    </div>
+                                    <div class="flow-arrow">
+                                        <i class="bi bi-arrow-right" id="plcArrow"></i>
+                                    </div>
+                                    <div class="flow-step">
+                                        <div class="status-indicator" id="plcStatus"></div>
+                                        <h6 class="mt-2">PLC System</h6>
+                                        <small class="text-muted">Puerto 9200</small>
+                                        <div id="plcLastActivity" class="small text-warning mt-1">Inactivo</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Timeline de eventos recientes -->
+                                <div class="mt-4">
+                                    <h6 class="border-bottom pb-2">Timeline de Eventos</h6>
+                                    <div id="eventsTimeline" style="max-height: 300px; overflow-y: auto;">
+                                        <div class="text-center text-muted py-3">
+                                            <i class="bi bi-clock-history"></i> Esperando eventos...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Paneles para ver las últimas etiquetas por tipo -->
+                    <!-- Última Etiqueta PRODUCTO -->
+                    <div class="col-lg-6 mt-4">
+                        <div class="card status-card">
+                            <div class="card-header bg-success text-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-tag-fill"></i> Última Etiqueta PRODUCTO
+                                    </h6>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-light btn-sm" onclick="copyToClipboard('normal')">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                        <button class="btn btn-outline-light btn-sm" onclick="refreshLastFile('normal')">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="mb-3">
+                                            <h6 class="text-muted">Información del Archivo</h6>
+                                            <div class="small">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>ID:</span>
+                                                    <span id="lastNormalFileId" class="font-monospace">-</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Timestamp:</span>
+                                                    <span id="lastNormalFileTimestamp">-</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Tamaño:</span>
+                                                    <span id="lastNormalFileSize">-</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Tipo:</span>
+                                                    <span class="badge bg-success">PRODUCTO</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>GS1:</span>
+                                                    <span id="lastNormalFileGS1" class="font-monospace text-break">-</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <h6 class="text-muted">Vista</h6>
+                                            <div class="btn-group btn-group-sm w-100" role="group">
+                                                <input type="radio" class="btn-check" name="normalFileView" id="normalViewFormatted" checked>
+                                                <label class="btn btn-outline-success" for="normalViewFormatted">Formateado</label>
+                                                
+                                                <input type="radio" class="btn-check" name="normalFileView" id="normalViewRaw">
+                                                <label class="btn btn-outline-success" for="normalViewRaw">Raw</label>
+                                                
+                                                <input type="radio" class="btn-check" name="normalFileView" id="normalViewOriginal">
+                                                <label class="btn btn-outline-success" for="normalViewOriginal">Original</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-12">
+                                        <div class="position-relative">
+                                            <div id="lastNormalFileContent" class="log-container" style="height: 250px; padding: 10px; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.3;">
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="bi bi-tag" style="font-size: 2rem;"></i>
+                                                    <p class="mt-2">No hay etiquetas PRODUCTO</p>
+                                                    <small>Las etiquetas aparecerán aquí cuando se reciban de ADI</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Última Etiqueta RFID -->
+                    <div class="col-lg-6 mt-4">
+                        <div class="card status-card">
+                            <div class="card-header bg-warning text-dark">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-broadcast"></i> Última Etiqueta RFID
+                                    </h6>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-dark btn-sm" onclick="copyToClipboard('rfid')">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                        <button class="btn btn-outline-dark btn-sm" onclick="refreshLastFile('rfid')">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="mb-3">
+                                            <h6 class="text-muted">Información del Archivo</h6>
+                                            <div class="small">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>ID:</span>
+                                                    <span id="lastRfidFileId" class="font-monospace">-</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Timestamp:</span>
+                                                    <span id="lastRfidFileTimestamp">-</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Tamaño:</span>
+                                                    <span id="lastRfidFileSize">-</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Tipo:</span>
+                                                    <span class="badge bg-warning text-dark">RFID</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>GS1:</span>
+                                                    <span id="lastRfidFileGS1" class="font-monospace text-break">-</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <h6 class="text-muted">Vista</h6>
+                                            <div class="btn-group btn-group-sm w-100" role="group">
+                                                <input type="radio" class="btn-check" name="rfidFileView" id="rfidViewFormatted" checked>
+                                                <label class="btn btn-outline-warning" for="rfidViewFormatted">Formateado</label>
+                                                
+                                                <input type="radio" class="btn-check" name="rfidFileView" id="rfidViewRaw">
+                                                <label class="btn btn-outline-warning" for="rfidViewRaw">Raw</label>
+                                                
+                                                <input type="radio" class="btn-check" name="rfidFileView" id="rfidViewOriginal">
+                                                <label class="btn btn-outline-warning" for="rfidViewOriginal">Original</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-12">
+                                        <div class="position-relative">
+                                            <div id="lastRfidFileContent" class="log-container" style="height: 250px; padding: 10px; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.3;">
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="bi bi-broadcast" style="font-size: 2rem;"></i>
+                                                    <p class="mt-2">No hay etiquetas RFID</p>
+                                                    <small>Las etiquetas aparecerán aquí cuando se reciban de ADI</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <!-- Diagnóstico en tiempo real -->
+                        <div class="card status-card mb-3">
+                            <div class="card-header card-header-custom">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-clipboard-data"></i> Diagnóstico
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="diagnosticResults">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Puerto ADI (9110)</span>
+                                        <span class="badge bg-secondary" id="port9110Status">Verificando...</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Puerto PLC (9200)</span>
+                                        <span class="badge bg-secondary" id="port9200Status">Verificando...</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Configuración</span>
+                                        <span class="badge bg-secondary" id="configStatus">Cargando...</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>Sistema IoT</span>
+                                        <span class="badge bg-secondary" id="systemStatus">Inicializando...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración rápida -->
+                        <div class="config-section">
+                            <h6 class="mb-3">
+                                <i class="bi bi-lightning"></i> Configuración Rápida
+                            </h6>
+                            <div class="mb-3">
+                                <label class="form-label">Modo de respuesta ADI:</label>
+                                <div class="btn-group d-block">
+                                    <input type="radio" class="btn-check" name="quickConfig" id="immediate" value="none">
+                                    <label class="btn btn-outline-light btn-sm" for="immediate">Inmediato</label>
+                                    
+                                    <input type="radio" class="btn-check" name="quickConfig" id="waitPLC" value="80" checked>
+                                    <label class="btn btn-outline-light btn-sm" for="waitPLC">Esperar PLC</label>
+                                </div>
+                            </div>
+                            <button class="btn btn-light btn-sm w-100" onclick="applyQuickConfig()">
+                                <i class="bi bi-check-circle"></i> Aplicar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña Logs Avanzados -->
+            <div class="tab-pane fade" id="logs-panel" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-terminal"></i> Logs del Sistema
+                                    </h5>
+                                    <div class="d-flex gap-2">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="autoScrollLogs" checked>
+                                            <label class="form-check-label text-white" for="autoScrollLogs">Auto-scroll</label>
+                                        </div>
+                                        <button class="btn btn-outline-light btn-sm" onclick="clearLogs()">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        <button class="btn btn-outline-light btn-sm" onclick="pauseLogs()" id="pauseBtn">
+                                            <i class="bi bi-pause"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="logsContainer" class="log-container"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <!-- Filtros de logs -->
+                        <div class="card status-card mb-3">
+                            <div class="card-header card-header-custom">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-funnel"></i> Filtros
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Categoría:</label>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <span class="badge bg-primary filter-badge" data-filter="all" onclick="setFilter('all')">Todos</span>
+                                        <span class="badge bg-info filter-badge" data-filter="ADI" onclick="setFilter('ADI')">ADI</span>
+                                        <span class="badge bg-success filter-badge" data-filter="PLC" onclick="setFilter('PLC')">PLC</span>
+                                        <span class="badge bg-warning filter-badge" data-filter="PRINTER" onclick="setFilter('PRINTER')">Impresora</span>
+                                        <span class="badge bg-secondary filter-badge" data-filter="SERVER" onclick="setFilter('SERVER')">Sistema</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Nivel:</label>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <span class="badge bg-dark filter-badge" data-level="all" onclick="setLevelFilter('all')">Todos</span>
+                                        <span class="badge bg-danger filter-badge" data-level="error" onclick="setLevelFilter('error')">Errores</span>
+                                        <span class="badge bg-warning filter-badge" data-level="warn" onclick="setLevelFilter('warn')">Avisos</span>
+                                        <span class="badge bg-success filter-badge" data-level="success" onclick="setLevelFilter('success')">Éxitos</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Buscar:</label>
+                                    <input type="text" class="form-control form-control-sm" id="logSearch" placeholder="Buscar en logs..." oninput="searchLogs()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Estadísticas de logs -->
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-graph-up"></i> Estadísticas
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Total logs:</span>
+                                    <span id="totalLogsCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-danger">Errores:</span>
+                                    <span id="errorLogsCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-warning">Avisos:</span>
+                                    <span id="warnLogsCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-success">Éxitos:</span>
+                                    <span id="successLogsCount">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña Flujo ADI-PLC -->
+            <div class="tab-pane fade" id="flow-panel" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-diagram-3"></i> Análisis de Flujo ADI ↔ PLC
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <!-- Diagrama de flujo visual -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <h6 class="border-bottom pb-2">Diagrama de Comunicación</h6>
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                                            <div class="text-center">
+                                                <div class="bg-primary text-white rounded-circle p-3 mx-auto mb-2" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                                    <i class="bi bi-building"></i>
+                                                </div>
+                                                <h6>Sistema ADI</h6>
+                                                <small class="text-muted">ERP Adisseo</small>
+                                                <div class="badge bg-success mt-2">Puerto 9110</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <i class="bi bi-arrow-right text-primary" style="font-size: 2rem;"></i>
+                                                <div class="small text-muted mt-1">Envío Etiquetas</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <div class="bg-info text-white rounded-circle p-3 mx-auto mb-2" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                                    <i class="bi bi-cpu"></i>
+                                                </div>
+                                                <h6>IOT2050</h6>
+                                                <small class="text-muted">Procesador</small>
+                                                <div class="badge bg-info mt-2">Sistema</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <i class="bi bi-arrow-right text-info" style="font-size: 2rem;"></i>
+                                                <div class="small text-muted mt-1">Comandos</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <div class="bg-warning text-white rounded-circle p-3 mx-auto mb-2" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                                    <i class="bi bi-gear"></i>
+                                                </div>
+                                                <h6>PLC</h6>
+                                                <small class="text-muted">Control</small>
+                                                <div class="badge bg-warning mt-2">Puerto 9200</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Estadísticas de comunicación -->
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-primary bg-opacity-10 rounded">
+                                            <h4 class="text-primary mb-1" id="adiMessages">15</h4>
+                                            <small class="text-muted">Mensajes ADI</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-info bg-opacity-10 rounded">
+                                            <h4 class="text-info mb-1" id="plcCommands">8</h4>
+                                            <small class="text-muted">Comandos PLC</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-success bg-opacity-10 rounded">
+                                            <h4 class="text-success mb-1" id="successfulTransfers">12</h4>
+                                            <small class="text-muted">Transferencias OK</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
+                                            <h4 class="text-warning mb-1" id="avgLatency">125ms</h4>
+                                            <small class="text-muted">Latencia Promedio</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Últimas transacciones -->
+                                <div class="mt-4">
+                                    <h6 class="border-bottom pb-2">Últimas Transacciones</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Hora</th>
+                                                    <th>Origen</th>
+                                                    <th>Destino</th>
+                                                    <th>Comando/Acción</th>
+                                                    <th>Estado</th>
+                                                    <th>Tiempo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="transactionsTable">
+                                                <tr>
+                                                    <td>14:23:15</td>
+                                                    <td><span class="badge bg-primary">ADI</span></td>
+                                                    <td><span class="badge bg-info">IOT</span></td>
+                                                    <td>Envío etiqueta GS1</td>
+                                                    <td><span class="badge bg-success">OK</span></td>
+                                                    <td>45ms</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>14:23:16</td>
+                                                    <td><span class="badge bg-info">IOT</span></td>
+                                                    <td><span class="badge bg-warning">PLC</span></td>
+                                                    <td>Comando CMD 10</td>
+                                                    <td><span class="badge bg-success">OK</span></td>
+                                                    <td>120ms</td>
+                                                </tr>
+                                                <tr>
+                                                    <td>14:23:17</td>
+                                                    <td><span class="badge bg-warning">PLC</span></td>
+                                                    <td><span class="badge bg-info">IOT</span></td>
+                                                    <td>Respuesta CMD 10</td>
+                                                    <td><span class="badge bg-success">OK</span></td>
+                                                    <td>35ms</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <!-- Estado de conexiones -->
+                        <div class="card status-card mb-3">
+                            <div class="card-header card-header-custom">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-wifi"></i> Estado de Conexiones
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span>Conexión ADI</span>
+                                    <span class="badge bg-success">Activa</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span>Conexión PLC</span>
+                                    <span class="badge bg-success">Activa</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span>Sistema IOT</span>
+                                    <span class="badge bg-success">Operativo</span>
+                                </div>
+                                <hr>
+                                <div class="small text-muted">
+                                    <div>Última actividad: Hace 2 minutos</div>
+                                    <div>Tiempo activo: 4h 32min</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuración de flujo -->
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-sliders"></i> Configuración Actual
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label small">Modo de Confirmación:</label>
+                                    <div class="badge bg-info">Esperar PLC 80</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small">Timeout:</label>
+                                    <div class="text-muted">30 segundos</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small">Reintentos:</label>
+                                    <div class="text-muted">3 máximo</div>
+                                </div>
+                                <div class="d-grid">
+                                    <button class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-gear"></i> Configurar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña Etiquetas -->
+            <div class="tab-pane fade" id="labels-panel" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-12">
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-tags"></i> Gestión de Etiquetas
+                                    </h5>
+                                    <button class="btn btn-outline-light btn-sm" onclick="refreshLabels()">
+                                        <i class="bi bi-arrow-clockwise"></i> Actualizar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Timestamp</th>
+                                                <th>Origen</th>
+                                                <th>Tamaño</th>
+                                                <th>Estado</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="labelsTableBody">
+                                            <tr>
+                                                <td><code>ETQ_001</code></td>
+                                                <td>14:23:15</td>
+                                                <td><span class="badge bg-primary">ADI</span></td>
+                                                <td>2.4 KB</td>
+                                                <td><span class="badge bg-success">Procesada</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-eye"></i> Ver
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-success">
+                                                        <i class="bi bi-printer"></i> Imprimir
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>ETQ_002</code></td>
+                                                <td>14:18:42</td>
+                                                <td><span class="badge bg-primary">ADI</span></td>
+                                                <td>2.1 KB</td>
+                                                <td><span class="badge bg-success">Procesada</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-eye"></i> Ver
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-success">
+                                                        <i class="bi bi-printer"></i> Imprimir
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>ETQ_003</code></td>
+                                                <td>14:15:20</td>
+                                                <td><span class="badge bg-primary">ADI</span></td>
+                                                <td>2.8 KB</td>
+                                                <td><span class="badge bg-warning">Pendiente</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-eye"></i> Ver
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-warning">
+                                                        <i class="bi bi-clock"></i> Esperando
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>ETQ_004</code></td>
+                                                <td>14:12:08</td>
+                                                <td><span class="badge bg-primary">ADI</span></td>
+                                                <td>2.2 KB</td>
+                                                <td><span class="badge bg-success">Procesada</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-eye"></i> Ver
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-success">
+                                                        <i class="bi bi-printer"></i> Imprimir
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pestaña Configuración -->
+            <div class="tab-pane fade" id="config-panel" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card status-card">
+                            <div class="card-header card-header-custom">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-gear"></i> Configuración del Sistema
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="systemConfigForm">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="waitForCommand" class="form-label">Modo de confirmación a ADI:</label>
+                                                <select class="form-select" id="waitForCommand" name="waitForCommand">
+                                                    <option value="none">Inmediatamente (no esperar PLC)</option>
+                                                    <option value="80">Esperar comando PLC 80 (consulta etiqueta)</option>
+                                                    <option value="10">Esperar comando PLC 10 (impresión)</option>
+                                                    <option value="any">Esperar cualquier comando PLC</option>
+                                                </select>
+                                                <div class="form-text">
+                                                    Determina cuándo el sistema confirma la recepción de etiquetas a ADI.
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="logLevel" class="form-label">Nivel de logging:</label>
+                                                <select class="form-select" id="logLevel">
+                                                    <option value="all">Todos los logs</option>
+                                                    <option value="info">Info y superiores</option>
+                                                    <option value="warn">Avisos y errores</option>
+                                                    <option value="error">Solo errores</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="submit" class="btn btn-custom">
+                                            <i class="bi bi-save"></i> Guardar Configuración
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="resetConfig()">
+                                            <i class="bi bi-arrow-clockwise"></i> Restablecer
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="card status-card mb-3">
+                            <div class="card-header card-header-custom">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-info-circle"></i> Información del Sistema
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-2">
+                                    <strong>Estado actual:</strong>
+                                    <span id="currentConfigDisplay" class="badge bg-info">Cargando...</span>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Puertos:</strong>
+                                    <div class="small text-muted">
+                                        ADI: 9110 | PLC: 9200 | Web: 3001
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Versión:</strong>
+                                    <div class="small text-muted">v2.1.0 - Build 2025.01</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ✅ NUEVA: Panel de Control PLC -->
+                        <div class="card status-card">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-gear-wide-connected"></i> Control PLC
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <h6 class="small mb-2">Estado de Marcas de Lectura:</h6>
+                                    <div class="small" id="readStatusDisplay">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>🏷️ Etiqueta Normal:</span>
+                                            <span id="normalReadStatus" class="badge bg-secondary">Cargando...</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>📡 Etiqueta RFID:</span>
+                                            <span id="rfidReadStatus" class="badge bg-secondary">Cargando...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-grid">
+                                    <button class="btn btn-warning" onclick="resetReadMarks()" id="resetReadMarksBtn">
+                                        <i class="bi bi-arrow-clockwise"></i> Resetear Marcas de Lectura
+                                    </button>
+                                </div>
+                                <div class="form-text mt-2">
+                                    <i class="bi bi-info-circle-fill"></i> Permite que el PLC vuelva a leer etiquetas ya procesadas. Útil para testing y depuración.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="enhanced-monitor.js"></script>
+</body>
+</html>
