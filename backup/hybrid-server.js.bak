@@ -1,0 +1,998 @@
+/**
+ * Servidor IOT2050 Híbrido Simplificado - Entorno de Pruebas
+ * Cliente: Adisseo
+ */
+
+const net = require('net');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const express = require('express');
+const socketIo = require('socket.io');
+
+// Sistema de logs mejorado con marcas de tiempo
+const colors = {
+    reset: '\x1b[0m',
+    red: '\x1b[31m',
+    green: '\x1b[32m',
+    yellow: '\x1b[33m',
+    blue: '\x1b[34m',
+    magenta: '\x1b[35m',
+    cyan: '\x1b[36m',
+    white: '\x1b[37m',
+    bgRed: '\x1b[41m',
+    bgGreen: '\x1b[42m',
+    bgBlue: '\x1b[44m',
+    bright: '\x1b[1m'
+};
+
+// Socket.io para enviar logs al monitor web
+let io = null;
+let connectedClients = 0;
+
+// Función de log mejorada con timestamp y categorización
+function log(message, category = 'SERVER', level = 'info') {
+    const timestamp = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
+    let color = colors.reset;
+    let prefix = '';
+    
+    switch (category) {
+        case 'PLC':
+            prefix = colors.blue;
+            break;
+        case 'ADI':
+            prefix = colors.magenta;
+            break;
+        case 'PRINTER':
+            prefix = colors.cyan;
+            break;
+        case 'MONITOR':
+            prefix = colors.yellow;
+            break;
+        case 'HÍBRIDO':
+        case 'SERVER':
+        default:
+            prefix = colors.green;
+    }
+    
+    switch (level) {
+        case 'error':
+            color = colors.red;
+            break;
+        case 'warn':
+            color = colors.yellow;
+            break;
+        case 'success':
+            color = colors.green + colors.bright;
+            break;
+        case 'info':
+        default:
+            color = colors.reset;
+    }
+    
+    // Mostrar en consola con colores
+    console.log(`${prefix}[${timestamp}][${category}]${colors.reset} ${color}${message}${colors.reset}`);
+    
+    // Enviar a clientes web conectados (sin colores)
+    if (io) {
+        io.emit('log', {
+            timestamp,
+            category,
+            level,
+            message
+        });
+    }
+}
+
+// Simulador: Usamos localhost, en producción serían las IPs reales
+const PRODUCT_PRINTER_HOST = 'localhost';
+const PRODUCT_PRINTER_PORT = 9100;
+const RFID_PRINTER_HOST = 'localhost';
+const RFID_PRINTER_PORT = 9101; // Puerto diferente para simulador RFID para evitar conflictos
+
+// En producción sería:
+// const PRODUCT_PRINTER_HOST = '10.108.220.10';
+// const PRODUCT_PRINTER_PORT = 9100;
+// const RFID_PRINTER_HOST = '10.108.220.15';
+// const RFID_PRINTER_PORT = 9100;
+
+// Configuración para el entorno híbrido
+const PLC_PORT = 9200;
+const MONITOR_PORT = 3001;
+const IOT_IP = '10.108.220.100';
+const COUNTER_FILE = path.join(__dirname, 'counter.json');
+const LABELS_FILE = path.join(__dirname, 'labels.json');
+
+// Configuración del servidor web para monitor
+const app = express();
+const webServer = http.createServer(app);
+io = socketIo(webServer);
+
+// Directorio para archivos estáticos
+const PUBLIC_DIR = path.join(__dirname, 'public');
+if (!fs.existsSync(PUBLIC_DIR)){
+    fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+}
+
+// Configuración básica de Express
+app.use(express.static(PUBLIC_DIR));
+app.use(express.json());
+
+// Configuración de Socket.io
+io.on('connection', (socket) => {
+    connectedClients++;
+    log(`Nuevo cliente web conectado (${connectedClients} activos)`, 'MONITOR');
+    
+    // Enviar logs históricos si existen
+    
+    socket.on('disconnect', () => {
+        connectedClients--;
+        log(`Cliente web desconectado (${connectedClients} activos)`, 'MONITOR');
+    });
+    
+    socket.on('clearLogs', () => {
+        log('Logs limpiados por usuario', 'MONITOR');
+    });
+});
+
+// Inicializar contador y datos de etiquetas
+let currentCounter = '0001';
+let baseBarcode = '(01)03531520010127(17)300506(10)782512600(21)';
+let lastLabelInfo = null;
+
+// Intentar cargar el contador y datos de etiquetas desde archivos
+try {
+    if (fs.existsSync(COUNTER_FILE)) {
+        const counterData = JSON.parse(fs.readFileSync(COUNTER_FILE, 'utf8'));
+        currentCounter = counterData.counter || '0001';
+        baseBarcode = counterData.baseBarcode || baseBarcode;
+        log(`Contador cargado: ${currentCounter}`, 'SERVER');
+    } else {
+        // Crear archivo de contador inicial
+        fs.writeFileSync(COUNTER_FILE, JSON.stringify({ 
+            counter: currentCounter,
+            baseBarcode: baseBarcode
+        }));
+        log(`Archivo de contador creado con valor inicial: ${currentCounter}`, 'SERVER');
+    }
+    
+    // Cargar información de etiquetas si existe
+    if (fs.existsSync(LABELS_FILE)) {
+        const labelsData = JSON.parse(fs.readFileSync(LABELS_FILE, 'utf8'));
+        lastLabelInfo = labelsData.lastLabel || null;
+        log('Información de última etiqueta cargada', 'SERVER');
+    }
+} catch (err) {
+    log(`Error al cargar datos: ${err.message}`, 'SERVER', 'error');
+}
+
+// Función para incrementar el contador
+function incrementCounter(counter) {
+    const numericValue = parseInt(counter, 10);
+    const newValue = numericValue + 1;
+    return newValue.toString().padStart(4, '0');
+}
+
+// Función para guardar el contador
+function saveCounter(counter) {
+    try {
+        fs.writeFileSync(COUNTER_FILE, JSON.stringify({ 
+            counter: counter,
+            baseBarcode: baseBarcode
+        }));
+        log(`Contador guardado: ${counter}`, 'SERVER');
+    } catch (err) {
+        log(`Error al guardar contador: ${err.message}`, 'SERVER', 'error');
+    }
+}
+
+// Función para guardar el contador
+
+// Función para actualizar el contador en el ZPL
+const updateCounterInZpl = (zplCommand, newCounter) => {
+  // Formatear el contador a 4 dígitos
+  const formattedCounter = newCounter.toString().padStart(4, '0');
+  
+  // Reemplazar el contador en el código de barras GS1-128
+  // Buscar el patrón (21)XXXX donde XXXX es cualquier secuencia de dígitos
+  // Usamos /g para reemplazar todas las ocurrencias
+  const gs1Pattern = /\(21\)(\d{4})/g;
+  let updatedZpl = zplCommand.replace(gs1Pattern, `(21)${formattedCounter}`);
+  
+  // Log para depuración
+  log(`⚙️ Actualizando etiqueta: contador anterior → contador nuevo (${formattedCounter})`, 'PRINTER');
+  
+  // También reemplazar el contador en cualquier texto visible
+  // Como "Counter: XXXX" si existe
+  const counterTextPattern = /Counter:\s*(\d{4})/g;
+  updatedZpl = updatedZpl.replace(counterTextPattern, `Counter: ${formattedCounter}`);
+  
+  log(`ZPL actualizado con nuevo contador: ${formattedCounter}`, 'PRINTER');
+  return updatedZpl;
+};
+
+// Función para guardar información de etiqueta
+const saveLabelInfo = (labelInfo) => {
+    try {
+        // Actualizar variable global
+        lastLabelInfo = labelInfo;
+        
+        // Leer etiquetas existentes
+        let labels = [];
+        if (fs.existsSync(LABELS_FILE)) {
+            try {
+                const fileContent = fs.readFileSync(LABELS_FILE, 'utf8');
+                labels = JSON.parse(fileContent);
+                
+                // Asegurar que sea un array
+                if (!Array.isArray(labels)) {
+                    // Si el archivo tiene el formato antiguo (objeto en lugar de array)
+                    labels = [];
+                }
+            } catch (err) {
+                log(`Error al leer archivo de etiquetas, creando nuevo: ${err.message}`, 'SERVER', 'warn');
+                labels = [];
+            }
+        }
+        
+        // Preparar etiqueta con metadatos adicionales
+        const labelToSave = {
+            ...labelInfo,
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            size: labelInfo.originalZpl ? labelInfo.originalZpl.length : 0,
+            barcode: labelInfo.gs1 || '',
+            zpl: labelInfo.originalZpl || ''
+        };
+        
+        // Agregar al inicio del array (más reciente primero)
+        labels.unshift(labelToSave);
+        
+        // Limitar a 20 etiquetas
+        if (labels.length > 20) {
+            labels = labels.slice(0, 20);
+        }
+        
+        // Guardar a archivo
+        fs.writeFileSync(LABELS_FILE, JSON.stringify(labels, null, 2));
+        log(`💾 Información de etiqueta guardada: ${labelInfo.gs1}`, 'SERVER', 'success');
+    } catch (err) {
+        log(`Error al guardar información de etiqueta: ${err.message}`, 'SERVER', 'error');
+    }
+}
+
+// Función para enviar comandos ZPL a impresoras
+function sendZplCommand(host, port, zplCommand, printerType) {
+    log(`Enviando comando ZPL a impresora ${printerType} (${host}:${port})`, 'PRINTER');
+    
+    // Mostrar ZPL raw que se enviará
+    log('\n--- INICIO ZPL RAW A ENVIAR ---', 'PRINTER');
+    log(zplCommand, 'PRINTER');
+    log('--- FIN ZPL RAW A ENVIAR ---\n', 'PRINTER');
+    log(`Longitud: ${zplCommand.length} bytes`, 'PRINTER');
+    
+    const client = new net.Socket();
+    
+    client.connect(port, host, () => {
+        log(`Conectado a impresora ${printerType}`, 'PRINTER');
+        
+        // Enviar comando ZPL
+        client.write(zplCommand, (err) => {
+            if (err) {
+                log(`Error al enviar comando ZPL: ${err.message}`, 'PRINTER', 'error');
+            } else {
+                log(`🖨️ Comando ZPL enviado correctamente a ${printerType}`, 'PRINTER', 'success');
+                
+                // Guardar también el comando ZPL en un archivo para debug
+                const timestamp = new Date().toISOString().replace(/:/g, '-');
+                const zplDir = path.join(__dirname, '..', 'printers', `${printerType}-debug`);
+                
+                if (!fs.existsSync(zplDir)) {
+                    fs.mkdirSync(zplDir, { recursive: true });
+                }
+                
+                const zplFile = path.join(zplDir, `zpl-${timestamp}.txt`);
+                fs.writeFileSync(zplFile, zplCommand);
+                console.log(`[PRINTER] Comando ZPL guardado en ${zplFile}`);
+            }
+            
+            // Cerrar la conexión
+            client.end();
+        });
+    });
+    
+    client.on('error', (err) => {
+        console.error(`[PRINTER] Error de conexión con impresora ${printerType}: ${err.message}`);
+    });
+    
+    client.on('close', () => {
+        console.log(`[PRINTER] Conexión cerrada con impresora ${printerType}`);
+    });
+}
+
+log('=== SERVIDOR HÍBRIDO DE PRUEBAS SIMPLIFICADO ===', 'SERVER', 'success');
+log('Cliente: Adisseo', 'SERVER');
+log(`Simulando IP: ${IOT_IP}`, 'SERVER');
+log(`Puerto PLC: ${PLC_PORT}`, 'SERVER');
+log('', 'SERVER');
+log('Para detener todos los servicios de Node.js: Get-Process -Name "node" | Stop-Process', 'SERVER', 'warn');
+log('', 'SERVER');
+
+// Mapa para conexiones activas
+const activeConnections = new Map();
+let nextConnectionId = 1;
+
+// Variables adicionales para el flujo de espera de comando 80
+let pendingAdiConnection = null; // Conexión ADI pendiente de respuesta
+let adiTimeout = null;        // Timeout para respuesta ADI
+
+// Crear un servidor TCP para recibir etiquetas del ERP ADI (puerto 9100)
+const labelReceiveServer = net.createServer((socket) => {
+  log(`Nueva conexión desde ${socket.remoteAddress}:${socket.remotePort}`, 'ADI');
+  
+  let dataBuffer = '';
+  
+  socket.on('data', (data) => {
+    const labelData = data.toString();
+    dataBuffer += labelData;
+    
+    log(`Recibiendo datos de etiqueta (${labelData.length} bytes)...`, 'ADI');
+    
+    // Mostrar datos raw recibidos
+    log('\n--- INICIO DATOS RAW RECIBIDOS DE ADI ---', 'ADI');
+    log(labelData, 'ADI');
+    log('--- FIN DATOS RAW RECIBIDOS DE ADI ---\n', 'ADI');
+    
+    // Si el comando empieza con ^ y termina con XZ, asumimos que es un comando ZPL completo
+    if (dataBuffer.startsWith('^XA') || dataBuffer.startsWith('~JA^XA')) {
+      log(`Etiqueta ZPL recibida`, 'ADI', 'success');
+      
+      // Guardar el ZPL completo original para usarlo más tarde cuando se envíe a la impresora
+      const originalZpl = dataBuffer;
+      
+      // Extraer el contador de la etiqueta (ahora buscamos en todo el texto, no solo al inicio)
+      const gs1Regex = /\(21\)(\d{4})/;
+      const gs1Match = dataBuffer.toString().match(gs1Regex);
+      
+      // Determinar el tipo de contenedor por el número de copias
+      const pqRegex = /\^PQ(\d+)/;
+      const pqMatch = dataBuffer.toString().match(pqRegex);
+      const copies = pqMatch && pqMatch[1] ? parseInt(pqMatch[1], 10) : 1;
+      const containerType = copies > 1 ? 'bidon' : 'ibc';
+      
+      log(`Tipo de contenedor detectado: ${containerType} (${copies} copias)`, 'ADI');
+      
+      if (gs1Match && gs1Match[1]) {
+        const labelCounter = gs1Match[1];
+        log(`Contador extraído de la etiqueta: ${labelCounter}`, 'ADI');
+        
+        // Actualizar contador global con el valor exacto de la etiqueta
+        // Esto es crucial: usamos el valor del contador de la etiqueta tal cual
+        currentCounter = labelCounter;
+        log(`⚠️ Inicializando contador a valor de etiqueta: ${labelCounter}`, 'ADI', 'warn');
+        saveCounter(currentCounter);
+        
+        // Guardando información de la etiqueta para uso futuro
+        const gs1 = baseBarcode + labelCounter;
+        const labelInfo = {
+          timestamp: new Date().toISOString(),
+          counter: labelCounter,
+          gs1: gs1,
+          type: containerType,
+          printed: false,  // Todavía no ha sido impresa por el PLC
+          copies: copies,
+          originalZpl: originalZpl  // Guardar el ZPL original completo para usarlo cuando se solicite impresión
+        };
+        
+        // NO guardamos aún la etiqueta ni actualizamos lastLabelInfo
+        // Esperaremos a recibir el comando 80 del PLC
+        log(`Etiqueta recibida y parseada. Se guardará cuando se reciba cmd 80`, 'ADI', 'warn');
+        
+        // IMPORTANTE: No respondemos inmediatamente, guardamos la conexión para responder cuando
+        // recibamos el comando 80 del PLC o cuando se cumpla el timeout
+        log(`Guardando conexión ADI pendiente de respuesta hasta comando 80 o timeout`, 'ADI', 'warn');
+        
+        // Guardar la conexión ADI pendiente
+        pendingAdiConnection = {
+          socket: socket,
+          timestamp: Date.now(),
+          labelInfo: labelInfo
+        };
+        
+        // Configurar timeout (8 segundos)
+        clearTimeout(adiTimeout); // Limpiamos timeout anterior si existe
+        adiTimeout = setTimeout(() => {
+          if (pendingAdiConnection && pendingAdiConnection.socket) {
+            log(`\n⚠️ TIMEOUT: No se recibió comando 80 del PLC en 8 segundos`, 'ADI', 'error');
+            log(`Enviando ERROR+9999 al ADI (código para timeout PLC)`, 'ADI', 'error');
+            pendingAdiConnection.socket.write('ERROR+9999\r');
+            log(`No se guarda la etiqueta ni se actualiza el contador debido al timeout`, 'ADI', 'error');
+            pendingAdiConnection = null;
+          }
+        }, 8000); // 8 segundos
+      } else {
+        log(`No se pudo extraer el contador de la etiqueta`, 'ADI', 'warn');
+        
+        // No respondemos inmediatamente
+        log(`No se pudo extraer contador, pero igualmente esperamos comando 80`, 'ADI', 'warn');
+        
+        // Guardar la conexión ADI pendiente
+        pendingAdiConnection = {
+          socket: socket,
+          timestamp: Date.now(),
+          labelInfo: null // No tenemos información de etiqueta válida
+        };
+        
+        // Configurar timeout (8 segundos)
+        clearTimeout(adiTimeout);
+        adiTimeout = setTimeout(() => {
+          if (pendingAdiConnection && pendingAdiConnection.socket) {
+            log(`\n⚠️ TIMEOUT: No se recibió comando 80 del PLC en 8 segundos`, 'ADI', 'error');
+            log(`Enviando ERROR+9999 al ADI (código para timeout PLC)`, 'ADI', 'error');
+            pendingAdiConnection.socket.write('ERROR+9999\r');
+            log(`No se guarda la etiqueta ni se actualiza el contador debido al timeout`, 'ADI', 'error');
+            pendingAdiConnection = null;
+          }
+        }, 8000); // 8 segundos
+      }
+      
+      // Limpiar el buffer
+      dataBuffer = '';
+    }
+  });
+  
+  socket.on('end', () => {
+    log(`Conexión finalizada`, 'ADI');
+  });
+  
+  // Si la conexión se cierra sin enviar datos válidos
+  socket.on('close', () => {
+    if (dataBuffer && !dataBuffer.includes('^XA')) {
+      log(`Conexión cerrada sin datos ZPL válidos`, 'ADI', 'warn');
+    }
+    
+    // Si esta es la conexión pendiente, limpiarla
+    if (pendingAdiConnection && pendingAdiConnection.socket === socket) {
+      log(`Conexión ADI pendiente cerrada por el cliente`, 'ADI', 'warn');
+      clearTimeout(adiTimeout);
+      pendingAdiConnection = null;
+    }
+  });
+  
+  socket.on('error', (err) => {
+    log(`Error en conexión: ${err.message}`, 'ADI', 'error');
+  });
+});
+
+// Crear servidor TCP que escuche en el puerto PLC
+const tcpServer = net.createServer((socket) => {
+  log(`Nueva conexión desde ${socket.remoteAddress}:${socket.remotePort}`, 'PLC');
+
+  // Asignar un ID de conexión único
+  const connectionId = nextConnectionId++;
+  activeConnections.set(connectionId, socket);
+
+  socket.on('data', (data) => {
+    try {
+      const commandData = data.toString();
+      
+      // Mostrar datos raw recibidos
+      log('\n--- INICIO DATOS RAW RECIBIDOS DE PLC ---', 'PLC');
+      log(commandData, 'PLC');
+      log('--- FIN DATOS RAW RECIBIDOS DE PLC ---\n', 'PLC');
+      
+      // Limpiar caracteres adicionales (como '#' al final)
+      const cleanData = commandData.replace(/#$/, '');
+      const command = JSON.parse(cleanData);
+      
+      // Procesar según el tipo de comando
+      const messageId = command.messageId || 125;
+      
+      if (command.cmd === 10) {
+        // Comando 10: Impresión estándar (principal para el cliente)
+        log('⚙️ Procesando comando de impresión estándar', 'PLC', 'success');
+        
+        // Si hay información de etiqueta del ERP, usarla (ahora siempre la usamos, sea pendiente o ya impresa)
+        if (lastLabelInfo) {
+          log('[PLC] Utilizando última etiqueta recibida del ERP...', 'PLC');
+          
+          // Obtener el contador actual sin incrementarlo todavía
+          const gs1 = baseBarcode + currentCounter;
+          
+          log('[PLC] Preparando envío de etiqueta a impresora de producto...', 'PLC');
+          
+          // IMPORTANTE: Enviar exactamente la misma etiqueta ZPL que llegó del ERP
+          // Esto garantiza que el formato sea idéntico al de producción
+          const originalZplCommand = lastLabelInfo.originalZpl || '';
+          
+          if (originalZplCommand) {
+            log('[PLC] Usando ZPL original recibido del ERP', 'PLC', 'success');
+            
+            // Reemplazar el contador en el ZPL original con el contador actual
+            // Esto mantiene el formato original pero actualiza el contador
+            const updatedZpl = updateCounterInZpl(originalZplCommand, currentCounter);
+            
+            // Enviar a impresora de producto (principal)
+            sendZplCommand(PRODUCT_PRINTER_HOST, PRODUCT_PRINTER_PORT, updatedZpl, 'product');
+            
+            // Una vez que se ha enviado correctamente, AHORA incrementamos el contador
+            const newCounter = incrementCounter(currentCounter);
+            currentCounter = newCounter;
+            saveCounter(newCounter);
+            
+            // Actualizamos el contador pero mantenemos la etiqueta para futuras impresiones
+            log('[PLC] Etiqueta impresa correctamente, contador incrementado', 'PLC');
+            
+            // Obtener el número de copias desde el ZPL (^PQ)
+            const copiesMatch = originalZplCommand.match(/\^PQ(\d+)/i);
+            const copies = copiesMatch ? parseInt(copiesMatch[1], 10) : 1;
+            
+            // Obtener el serial de la etiqueta (lo mismo que el contador de la etiqueta, no el incrementado)
+            const serialMatch = lastLabelInfo.barcode ? lastLabelInfo.barcode.match(/\(21\)(\d+)/) : null;
+            const serial = serialMatch ? serialMatch[1] : '0001';
+            
+            // Responder al PLC con el nuevo formato
+            socket.write(JSON.stringify({
+              status: 'success',
+              code: 'PRINT_OK',
+              messageId: messageId,
+              gs1: lastLabelInfo.barcode || (baseBarcode + serial),
+              serial: serial,
+              currentCounter: currentCounter, // El contador ya incrementado para la próxima etiqueta
+              copies: copies
+            }) + '#');
+          } else {
+            // Si no hay ZPL original (caso improbable), usar el fallback
+            log('[PLC] No se encontró ZPL original, usando generado', 'PLC', 'warn');
+            
+            const date = new Date();
+            const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+            
+            // Crear comando ZPL (simplificado para pruebas)
+            const zplCommand = `^XA
+^FO50,50
+^A0N,50,50
+^FDAdisseo Etiqueta Standard^FS
+^FO50,120
+^A0N,30,30
+^FDFecha: ${formattedDate}^FS
+^FO50,170
+^A0N,30,30
+^FDCounter: ${currentCounter}^FS
+^FO50,220
+^BY3
+^BCN,100,Y,N,N
+^FD${gs1}^FS
+^XZ`;
+            
+            // Enviar a impresora de producto (principal)
+            sendZplCommand(PRODUCT_PRINTER_HOST, PRODUCT_PRINTER_PORT, zplCommand, 'product');
+            
+            // Solo después de enviar correctamente, incrementamos el contador
+            const newCounter = incrementCounter(currentCounter);
+            currentCounter = newCounter;
+            saveCounter(newCounter);
+            
+            // Actualizamos el contador pero mantenemos la etiqueta para futuras impresiones
+            log('[PLC] Etiqueta impresa correctamente, contador incrementado', 'PLC');
+            
+            // Responder al PLC
+            socket.write(JSON.stringify({
+              status: 'success',
+              messageId: messageId,
+              data: {
+                command: command.cmd,
+                type: command.type,
+                counter: currentCounter,
+                gs1: baseBarcode + currentCounter
+              }
+            }) + '#');
+          }
+        } else {
+          log('[PLC] No hay etiqueta pendiente del ERP, generando nueva...', 'PLC', 'warn');
+          
+          // Crear información de etiqueta
+          const date = new Date();
+          const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+          
+          // Crear comando ZPL (simplificado para pruebas)
+          const zplCommand = `^XA
+^FO50,50
+^A0N,50,50
+^FDAdisseo Etiqueta Standard^FS
+^FO50,120
+^A0N,30,30
+^FDFecha: ${formattedDate}^FS
+^FO50,170
+^A0N,30,30
+^FDCounter: ${currentCounter}^FS
+^FO50,220
+^BY3
+^BCN,100,Y,N,N
+^FD${baseBarcode + currentCounter}^FS
+^XZ`;
+          
+          // Enviar a impresora de producto
+          sendZplCommand(PRODUCT_PRINTER_HOST, PRODUCT_PRINTER_PORT, zplCommand, 'product');
+          
+          // Solo después de enviar correctamente, incrementamos el contador
+          const newCounter = incrementCounter(currentCounter);
+          currentCounter = newCounter;
+          saveCounter(newCounter);
+          
+          // Responder al PLC
+          socket.write(JSON.stringify({
+            status: 'success',
+            messageId: messageId,
+            data: {
+              command: command.cmd,
+              type: command.type,
+              counter: currentCounter,
+              gs1: baseBarcode + currentCounter
+            }
+          }) + '#');
+        }
+      } 
+      else if (command.cmd === 11) {
+        // Comando 11: Impresión RFID
+        console.log('[PLC] Procesando comando de impresión RFID');
+        
+        // Generar datos para la etiqueta RFID
+        const rfidCode = `RFID${Date.now().toString().substr(-6)}`;
+        const date = new Date();
+        const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+        
+        // Crear comando ZPL para RFID
+        const zplCommand = `^XA
+^FO50,50
+^A0N,50,50
+^FDAdisseo Etiqueta RFID^FS
+^FO50,120
+^A0N,30,30
+^FDFecha: ${formattedDate}^FS
+^FO50,170
+^A0N,30,30
+^FDRFID: ${rfidCode}^FS
+^FO50,220
+^BY3
+^BCN,100,Y,N,N
+^FD${rfidCode}^FS
+^XZ`;
+        
+        // Agregar el caracter # al final como en los comandos PLC reales
+        const zplCommandWithHash = zplCommand + '#';
+        
+        console.log(`[PLC] Preparando envío de etiqueta a impresora RFID (puerto ${RFID_PRINTER_PORT})...`);
+        
+        // Enviar comando ZPL a la impresora RFID con manejo de errores
+        try {
+          sendZplCommand(RFID_PRINTER_HOST, RFID_PRINTER_PORT, zplCommand, 'rfid');
+          console.log(`[PLC] Comando de impresión enviado correctamente a impresora RFID`);
+        } catch (printError) {
+          console.error(`[PLC] Error al enviar comando a impresora RFID: ${printError.message}`);
+        }
+        
+        // Guardar información de la etiqueta RFID
+        const labelInfo = {
+          timestamp: new Date().toISOString(),
+          rfidCode: rfidCode,
+          type: 'rfid',
+          printed: true
+        };
+        
+        // Guardar información de etiqueta (opcional para RFID)
+        // saveLabelInfo(labelInfo);
+        
+        // Responder con éxito al cliente
+        socket.write(JSON.stringify({
+          status: 'success',
+          code: 'RFID_PRINT_OK',
+          messageId: messageId,
+          rfidCode: rfidCode,
+          message: 'Etiqueta RFID enviada correctamente'
+        }) + '#');
+      } 
+      else if (command.cmd === 40) {
+        // Comando 40: Consulta o actualización del contador
+        if (command.data && command.data.setCounter) {
+          console.log(`[PLC] Actualizando contador a: ${command.data.setCounter}`);
+          
+          // Actualizar el contador
+          currentCounter = command.data.setCounter;
+          saveCounter(currentCounter);
+          
+          // Responder con éxito
+          socket.write(JSON.stringify({
+            status: 'success',
+            code: 'COUNTER_UPDATED',
+            messageId: messageId,
+            counter: currentCounter
+          }) + '#');
+        } else {
+          console.log('[PLC] Consultando contador actual');
+          
+          // Responder con el contador actual
+          socket.write(JSON.stringify({
+            status: 'success',
+            code: 'COUNTER_VALUE',
+            messageId: messageId,
+            counter: currentCounter
+          }) + '#');
+        }
+      } 
+      else if (command.cmd === 80) {
+        // Comando 80: Consulta de última etiqueta (importante para el cliente)
+        log('[PLC] Procesando comando de consulta de última etiqueta', 'PLC');
+        
+        // Respuesta al PLC
+        if (lastLabelInfo) {
+          // Responder con la información de la última etiqueta
+          log(`[PLC] Devolviendo información de última etiqueta: ${lastLabelInfo.gs1}`, 'PLC');
+          
+          // Formato exacto que espera el PLC en producción
+          socket.write(JSON.stringify({
+            status: 'success',
+            code: 'LAST_LABEL_INFO',
+            messageId: messageId,
+            gs1: lastLabelInfo.gs1,
+            serial: lastLabelInfo.counter,
+            currentCounter: currentCounter,
+            copies: lastLabelInfo.copies || 1
+          }) + '#');
+        } else {
+          // No hay información de etiqueta disponible
+          log('[PLC] No hay información de etiqueta disponible', 'PLC', 'warn');
+          
+          socket.write(JSON.stringify({
+            status: 'warning',
+            code: 'NO_LABEL_INFO',
+            messageId: messageId,
+            message: 'No hay información de etiqueta disponible'
+          }) + '#');
+        }
+        
+        // IMPORTANTE: Si hay una conexión ADI pendiente, responderle ahora
+        if (pendingAdiConnection && pendingAdiConnection.socket) {
+          log(`\n✅ Recibido comando 80 del PLC, respondiendo OK\r a ADI pendiente`, 'ADI', 'success');
+          
+          // AHORA SÍ guardamos la información de la etiqueta y actualizamos el contador
+          if (pendingAdiConnection.labelInfo) {
+            // Guardar la etiqueta en el sistema
+            lastLabelInfo = pendingAdiConnection.labelInfo;
+            saveLabelInfo(pendingAdiConnection.labelInfo);
+            log(`💾 Información de etiqueta guardada: ${pendingAdiConnection.labelInfo.gs1}`, 'SERVER', 'success');
+            
+            // Si la etiqueta tiene un contador, actualizarlo
+            if (pendingAdiConnection.labelInfo.counter) {
+              log(`⚠️ Inicializando contador a valor de etiqueta: ${pendingAdiConnection.labelInfo.counter}`, 'ADI', 'warn');
+              currentCounter = pendingAdiConnection.labelInfo.counter;
+              saveCounter(currentCounter);
+              log(`Contador guardado: ${currentCounter}`, 'SERVER', 'success');
+            }
+            
+            log(`📋 Información de etiqueta guardada y contador actualizado a ${currentCounter}`, 'ADI', 'success');
+          }
+          
+          // Enviamos la respuesta OK al ADI
+          pendingAdiConnection.socket.write('OK\r');
+          log(`Respuesta OK\r enviada a ADI`, 'ADI', 'success');
+          
+          // Limpiar el timeout y la conexión pendiente
+          clearTimeout(adiTimeout);
+          pendingAdiConnection = null;
+          
+          log(`Flujo completo: Recepción de etiqueta ADI + Consulta PLC + Actualización contador`, 'ADI', 'success');
+        } else {
+          log(`Comando 80 recibido pero no hay ADI pendiente de respuesta`, 'PLC', 'warn');
+        }
+      } 
+      else {
+        // Comando no soportado en esta versión simplificada
+        console.log(`[PLC] Comando ${command.cmd} no soportado en esta versión simplificada`);
+        socket.write(JSON.stringify({
+          status: 'success', // Respondemos success para no bloquear al PLC
+          code: 'COMMAND_SIMULATED',
+          messageId: messageId,
+          message: `Comando ${command.cmd} simulado correctamente`
+        }) + '#');
+      }
+    } catch (error) {
+      log(`Error al procesar comando: ${error.message}`, 'PLC', 'error');
+      try {
+        socket.write(JSON.stringify({
+          status: 'error',
+          code: 'COMMAND_PROCESSING_ERROR',
+          message: 'Error al procesar comando',
+          details: error.message
+        }) + '#');
+      } catch (writeError) {
+        log(`Error al enviar respuesta de error: ${writeError.message}`, 'PLC', 'error');
+      }
+    }
+  });
+  
+  socket.on('error', (err) => {
+    log(`Error en conexión: ${err.message}`, 'PLC', 'error');
+  });
+  
+  socket.on('close', () => {
+    log('Conexión cerrada', 'PLC');
+    // Eliminar conexión del mapa de conexiones activas
+    for (const [id, conn] of activeConnections.entries()) {
+      if (conn === socket) {
+        activeConnections.delete(id);
+        log(`Conexión ${id} eliminada del registro`, 'PLC');
+        break;
+      }
+    }
+  });
+});
+
+// Iniciar servidor PLC
+tcpServer.listen(PLC_PORT, '0.0.0.0', () => {
+  log(`Servidor PLC escuchando en puerto ${PLC_PORT}`, 'HÍBRIDO', 'success');
+  log(`Simulando dispositivo IOT2050 con IP ${IOT_IP}`, 'HÍBRIDO');
+  log('Listo para recibir comandos PLC', 'HÍBRIDO');
+});
+
+// Iniciar servidor de recepción de etiquetas (puerto 9110 para evitar conflicto con impresoras)
+const LABEL_RECEIVE_PORT = 9110;
+labelReceiveServer.listen(LABEL_RECEIVE_PORT, '0.0.0.0', () => {
+  log(`Servidor de recepción de etiquetas escuchando en puerto ${LABEL_RECEIVE_PORT}`, 'HÍBRIDO', 'success');
+  log(`Listo para recibir etiquetas del ERP ADI`, 'HÍBRIDO');
+  log('', 'HÍBRIDO');
+  log('Para probar el servidor:', 'HÍBRIDO');
+  log('  1. Enviar comandos PLC:', 'HÍBRIDO');
+  log('     cd ..', 'HÍBRIDO');
+  log('     cd ..', 'HÍBRIDO');
+  log('     node test-plc-cmd10.js 10', 'HÍBRIDO');
+  log('', 'HÍBRIDO');
+  log('  2. Simular envío de etiquetas desde ADI:', 'HÍBRIDO');
+  log('     cd ..\adi', 'HÍBRIDO');
+  log('     node adi-erp-simulator-v2.js bidon1', 'HÍBRIDO');
+});
+
+// Iniciar servidor web para el monitor con logs
+webServer.listen(MONITOR_PORT, '0.0.0.0', () => {
+  log(`Monitor web disponible en http://localhost:${MONITOR_PORT}`, 'MONITOR', 'success');
+  log('Interface web con logs detallados del sistema', 'MONITOR');
+});
+
+// Configurar rutas API para Express
+app.get('/api/status', (req, res) => {
+  log(`Solicitud API recibida: GET /api/status`, 'MONITOR');
+  res.json({
+    status: 'running',
+    connections: activeConnections.size,
+    counter: currentCounter,
+    baseBarcode: baseBarcode
+  });
+});
+
+// Ruta para obtener etiquetas guardadas
+app.get('/api/labels', (req, res) => {
+  log(`Solicitud API recibida: GET /api/labels`, 'MONITOR');
+  
+  // Leer etiquetas guardadas
+  try {
+    if (fs.existsSync(LABELS_FILE)) {
+      const labelsData = JSON.parse(fs.readFileSync(LABELS_FILE, 'utf8'));
+      res.json(labelsData);
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    log(`Error al leer etiquetas: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al leer etiquetas' });
+  }
+});
+
+// API para borrar etiquetas
+app.delete('/api/labels', (req, res) => {
+  log(`Solicitud API recibida: DELETE /api/labels`, 'MONITOR');
+  
+  try {
+    // Escribir un array vacío
+    fs.writeFileSync(LABELS_FILE, JSON.stringify([]), 'utf8');
+    log('Etiquetas borradas correctamente', 'MONITOR', 'success');
+    res.json({ success: true });
+  } catch (error) {
+    log(`Error al borrar etiquetas: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al borrar etiquetas' });
+  }
+});
+
+// API para obtener detalles de una etiqueta específica
+app.get('/api/labels/:id', (req, res) => {
+  const labelId = req.params.id;
+  log(`Solicitud API recibida: GET /api/labels/${labelId}`, 'MONITOR');
+  
+  try {
+    if (fs.existsSync(LABELS_FILE)) {
+      const labels = JSON.parse(fs.readFileSync(LABELS_FILE, 'utf8'));
+      
+      // Buscar la etiqueta por ID
+      const label = labels.find(l => l.id === labelId);
+      
+      if (label) {
+        res.json(label);
+      } else {
+        log(`Etiqueta con ID ${labelId} no encontrada`, 'MONITOR', 'warn');
+        res.status(404).json({ error: 'Etiqueta no encontrada' });
+      }
+    } else {
+      res.status(404).json({ error: 'No hay etiquetas guardadas' });
+    }
+  } catch (error) {
+    log(`Error al obtener detalles de etiqueta: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al obtener detalles de etiqueta' });
+  }
+});
+
+// API para reenviar una etiqueta a una impresora
+app.post('/api/labels/:id/print', (req, res) => {
+  const labelId = req.params.id;
+  const { printer } = req.body;
+  
+  log(`Solicitud para imprimir etiqueta ${labelId} en impresora ${printer}`, 'MONITOR');
+  
+  try {
+    if (fs.existsSync(LABELS_FILE)) {
+      const labels = JSON.parse(fs.readFileSync(LABELS_FILE, 'utf8'));
+      
+      // Buscar la etiqueta por ID
+      const label = labels.find(l => l.id === labelId);
+      
+      if (!label) {
+        log(`Etiqueta con ID ${labelId} no encontrada`, 'MONITOR', 'error');
+        return res.status(404).json({ error: 'Etiqueta no encontrada' });
+      }
+      
+      // Verificar que la etiqueta tiene ZPL
+      if (!label.zpl) {
+        log(`Etiqueta con ID ${labelId} no tiene contenido ZPL`, 'MONITOR', 'error');
+        return res.status(400).json({ error: 'La etiqueta no tiene contenido ZPL' });
+      }
+      
+      // Determinar puerto de impresora
+      let printerHost = PRODUCT_PRINTER_HOST;
+      let printerPort = PRODUCT_PRINTER_PORT;
+      
+      if (printer === 'rfid') {
+        printerHost = RFID_PRINTER_HOST;
+        printerPort = RFID_PRINTER_PORT;
+      }
+      
+      // Enviar a la impresora seleccionada
+      sendZplCommand(printerHost, printerPort, label.zpl, printer);
+      
+      log(`Etiqueta ${labelId} enviada a impresora ${printer} correctamente`, 'MONITOR', 'success');
+      res.json({ success: true, message: 'Etiqueta enviada a impresora' });
+    } else {
+      res.status(404).json({ error: 'No hay etiquetas guardadas' });
+    }
+  } catch (error) {
+    log(`Error al reenviar etiqueta a impresora: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al reenviar etiqueta a impresora' });
+  }
+});
+
+// Servir el index.html en la raíz
+app.get('/', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+});
+
+// Manejar cierre del servidor
+process.on('SIGINT', () => {
+  log('Cerrando servidores...', 'SERVER', 'warn');
+  plcServer.close();
+  labelReceiveServer.close();
+  webServer.close();
+  process.exit(0);
+});
+
+// Manejar excepciones no capturadas
+process.on('uncaughtException', (err) => {
+  log(`Error no capturado: ${err.message}`, 'SERVER', 'error');
+  // No cerramos el servidor para que pueda seguir funcionando
+});
