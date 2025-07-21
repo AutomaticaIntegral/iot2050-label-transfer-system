@@ -1,143 +1,213 @@
-# Servidor Híbrido de Simulación Adisseo
+# 🏭 **IoT2050 Label Transfer System**
 
-## TCP Label Transfer - Sistema de Transferencia de Etiquetas
+**Cliente:** ADISSEO  
+**Desarrollador:** Automática Integral  
+**Sistema:** Sistema de transferencia de etiquetas para IoT2050  
 
-Este proyecto implementa un servidor híbrido para la simulación del sistema de transferencia de etiquetas de Adisseo. Proporciona una plataforma para probar la comunicación entre:
+## 🎯 **DESCRIPCIÓN**
 
-- Sistema ADI (envío de etiquetas)
-- PLC (consulta y manejo de etiquetas)
-- Impresoras (impresión de etiquetas)
+Sistema completo de transferencia y gestión de etiquetas RFID/Producto para dispositivos IoT2050 con capacidades de testing, simulación y monitoreo en tiempo real.
 
-### Estructura del Proyecto
+## 🚀 **FUNCIONALIDADES PRINCIPALES**
 
-El código ha sido refactorizado para seguir una arquitectura modular que mejora la mantenibilidad y facilita las pruebas:
+### ✅ **Sistema en Producción (IoT)**
+- **📡 Servidor PLC** - Procesamiento comandos CMD 10/11
+- **🖨️ Gestión de impresoras** - RFID y Producto
+- **🌐 Interfaz web** - Monitor en tiempo real
+- **💾 Persistencia de datos** - Contadores y etiquetas
+- **🔄 Sincronización RFID** - Sistema automático
 
+### ✅ **Sistema de Testing y Desarrollo**
+- **🧪 Simulador CMD 11** - Envío desde PC al IoT
+- **📱 Simuladores VPN** - Captura etiquetas desde IoT real
+- **🔍 Análisis ZPL** - Contenido completo de etiquetas
+- **🌐 Interfaz de testing** - Monitoreo avanzado
+- **📊 Herramientas diagnóstico** - Conectividad VPN
+
+## 📂 **ESTRUCTURA DEL PROYECTO**
+
+### 🏭 **Archivos de Producción (Raíz)**
 ```
-iot2050/
-│
-├── index.js           # Punto de entrada principal
-├── src/
-│   ├── main.js        # Orquestador principal del sistema
-│   │
-│   ├── config/        # Configuración centralizada
-│   │   └── index.js
-│   │
-│   ├── utils/         # Utilidades y funciones auxiliares
-│   │   ├── logger.js
-│   │   ├── file-handler.js
-│   │   ├── zpl-utils.js
-│   │   └── system-config.js
-│   │
-│   ├── servers/       # Servidores de comunicación
-│   │   ├── web-server.js
-│   │   ├── plc-server.js
-│   │   └── adi-server.js
-│   │
-│   ├── services/      # Lógica de negocio
-│   │   ├── label-service.js
-│   │   └── printer-service.js
-│   │
-│   └── models/        # Modelos de datos (si es necesario)
-│
-├── public/            # Archivos de la interfaz web
-│   ├── index.html
-│   ├── main.js
-│   └── ...
-│
-└── data/              # Datos persistentes
-    ├── labels.json
-    ├── counter.txt    # Contador para etiquetas normales
-    ├── rfid_counter.txt # Contador para etiquetas RFID
-    └── zpl/           # Archivos ZPL guardados
+├── index.js              # Punto de entrada principal
+├── start-server.js       # Script de inicio
+├── package.json          # Dependencias
+├── src/                  # Código fuente
+│   ├── config/          # Configuraciones
+│   ├── servers/         # Servidores PLC/Web
+│   ├── services/        # Servicios de etiquetas
+│   └── utils/           # Utilidades
+├── public/              # Interfaz web
+└── data/                # Datos del sistema
 ```
 
-### Funcionalidades Principales
-
-El sistema proporciona las siguientes funcionalidades:
-
-1. **Recepción de Etiquetas**: Recibe etiquetas ZPL del sistema ADI (puerto 9110)
-2. **Comunicación con PLC**: Atiende comandos del PLC (puerto 9200)
-3. **Impresión de Etiquetas**: Envía comandos ZPL a impresoras de producto y RFID
-4. **Flujo Dual de Etiquetas**: Maneja por separado etiquetas normales (bidones) y RFID (IBC)
-5. **Monitor Web**: Interfaz web para visualizar logs, etiquetas y configuración (puerto 3001)
-6. **Configuración Dinámica**: Permite configurar el comportamiento del sistema en tiempo real
-
-### Comportamiento de Respuesta a ADI
-
-El sistema permite configurar el comportamiento de respuesta a ADI al recibir una etiqueta:
-
-- **Respuesta inmediata**: Responde inmediatamente al recibir la etiqueta
-- **Esperar CMD 80**: Espera a que el PLC envíe el comando 80 antes de responder (comportamiento tradicional)
-- **Esperar otro comando**: Puede configurarse para esperar cualquier otro comando del PLC
-
-Esta configuración se puede modificar desde la interfaz web del monitor.
-
-### Inicio del Sistema
-
-Para iniciar el sistema completo, ejecute:
-
-```powershell
-cd c:\Projects\80_WinSurf\10_TEST01\tcp-label-transfer-26\testing-env\hybrid-simulation
-.\start-hybrid-testing.ps1
+### 🧪 **Archivos de Desarrollo (`project-organization/`)**
+```
+project-organization/
+├── 📂 simulators/       # Simuladores de impresoras
+├── 📂 testing/          # Scripts de testing CMD 11
+├── 📂 scripts/          # Scripts de configuración
+├── 📂 documentation/    # Documentación completa
+├── 📂 config/           # Configuraciones desarrollo
+└── 📂 backup/           # Scripts de backup
 ```
 
-Para iniciar solo el servidor híbrido:
+## 🔥 **INICIO RÁPIDO**
 
+### **🏭 Producción (IoT2050)**
 ```bash
-cd c:\Projects\80_WinSurf\10_TEST01\tcp-label-transfer-26\testing-env\hybrid-simulation\iot2050
-node index.js
+# Instalar dependencias
+npm install
+
+# Iniciar sistema
+npm start
+# o
+node start-server.js
 ```
 
-### Pruebas
+### **🧪 Testing Local**
+```bash
+# Configurar testing local
+node project-organization/scripts/setup-local-testing.js
 
-Para probar el sistema:
+# Ejecutar simuladores
+npm run simulator
+```
 
-1. **Envío de comandos PLC**:
-   ```bash
-   # Para etiquetas normales (CMD 10)
-   node tests/test-cmd10-standard.js
-   
-   # Para etiquetas RFID (CMD 1)
-   node tests/test-cmd1-rfid.js
-   ```
+### **📡 Testing VPN con IoT Real**
+```bash
+# 1. Configurar sistema VPN
+node project-organization/scripts/setup-iot-vpn-testing.js
 
-2. **Simulación de envío de etiquetas desde ADI**:
-   ```bash
-   # Enviar ambos tipos de etiquetas (normal y RFID)
-   node tests/test-send-labels.js
-   ```
+# 2. Iniciar simulador VPN
+node project-organization/simulators/enhanced-vpn-simulator.js
 
-### Mantenimiento
+# 3. Enviar CMD 11 al IoT
+node project-organization/testing/test-cmd11-local.js 192.168.214.50 9200
 
-Para agregar nuevas funcionalidades:
+# 4. Ver etiquetas capturadas
+open http://localhost:3002
+```
 
-1. Identifique el módulo apropiado para su implementación
-2. Mantenga la separación de responsabilidades
-3. Actualice la documentación según sea necesario
+## 📋 **DOCUMENTACIÓN PRINCIPAL**
 
-### Notas Adicionales
+| **Documento** | **Descripción** |
+|---------------|-----------------|
+| [📚 **Documentación Completa**](project-organization/documentation/DOCUMENTACION-COMPLETA-SESIONES.md) | **Documentación exhaustiva de implementación** |
+| [🔧 **Proceso ADISSEO**](project-organization/documentation/PROCESO-COMPLETO-ADISSEO.md) | Proceso completo de producción |
+| [📁 **Índice del Proyecto**](PROJECT-INDEX.md) | Estructura organizada del proyecto |
+| [📖 **Scripts**](project-organization/documentation/README-SCRIPTS.md) | Documentación de scripts |
 
-- La interfaz web está disponible en http://localhost:3001
-- Los logs del sistema se muestran tanto en la consola como en la interfaz web
-- El sistema mantiene un archivo de etiquetas y dos contadores persistentes (normal y RFID)
-- Las impresoras en producción tienen las siguientes IPs:
-  - Impresora de producto: 10.108.220.10 (Puerto: 9100)
-  - Impresora RFID: 10.108.220.15 (Puerto: 9100)
+## ⚡ **COMANDOS NPM**
 
-### Flujo Dual de Etiquetas
+```json
+{
+  "start": "node start-server.js",
+  "simulator": "node project-organization/simulators/printer-simulator.js",
+  "simulator:vpn": "node project-organization/simulators/enhanced-vpn-simulator.js",
+  "cmd11": "node project-organization/testing/test-cmd11-local.js",
+  "cmd11:iot": "node project-organization/testing/test-cmd11-local.js 192.168.214.50 9200"
+}
+```
 
-El sistema ahora soporta dos flujos separados para etiquetas:
+## 🌐 **CONFIGURACIÓN DE RED**
 
-1. **Etiquetas Normales (Bidones)**:
-   - Identificadas por contener `^PQ4` en el ZPL
-   - Gestionadas con el comando CMD 10
-   - Enviadas a la impresora de producto
-   - Utilizan su propio contador independiente
+### **🏭 Producción IoT**
+- **IoT IP:** `192.168.214.50`
+- **Puerto PLC:** `9200`
+- **Puerto Web:** `3001`
+- **Impresora RFID:** `192.168.214.31:9100`
+- **Impresora Producto:** `192.168.214.32:9100`
 
-2. **Etiquetas RFID (IBC)**:
-   - Identificadas por contener `^PQ1` y `^RFW` en el ZPL
-   - Gestionadas con el nuevo comando CMD 1
-   - Enviadas a la impresora RFID
-   - Utilizan su propio contador independiente
+### **🧪 Testing VPN**
+- **PC Local:** `100.97.189.85`
+- **Simulador RFID:** `9105`
+- **Simulador Producto:** `9106`
+- **Monitor Web:** `3002`
 
-Para más detalles sobre esta funcionalidad, consulte la [documentación completa](docs/dual-label-flow.md).
+## 📊 **CASOS DE USO**
+
+### **🔥 CASO 1: Desarrollo Local**
+Para desarrollar sin dependencias externas:
+```bash
+npm run simulator     # Simulador local
+npm start            # Sistema IoT local
+npm run cmd11        # Test CMD 11 local
+```
+
+### **🔥 CASO 2: Testing con IoT Real**
+Para verificar el IoT en producción:
+```bash
+node project-organization/simulators/enhanced-vpn-simulator.js
+node project-organization/testing/test-cmd11-local.js 192.168.214.50 9200
+```
+
+### **🔥 CASO 3: Análisis ZPL**
+Para capturar y analizar etiquetas reales:
+1. Configurar simulador VPN en PC
+2. Cambiar IPs impresoras en IoT → PC
+3. Enviar CMD 11 y capturar ZPL completo
+
+## 🛠️ **HERRAMIENTAS ESPECIALIZADAS**
+
+### **📡 Simulador VPN Mejorado**
+- **Archivo:** `project-organization/simulators/enhanced-vpn-simulator.js`
+- **Puerto:** `3002`
+- **Función:** Captura ZPL completo desde IoT real
+- **Características:** Análisis, descarga, historial
+
+### **📤 Testing CMD 11**
+- **Archivo:** `project-organization/testing/test-cmd11-local.js`
+- **Función:** Simular comandos PLC
+- **Uso:** `node test-cmd11-local.js [host] [port] [messageId] [counter]`
+
+### **🔍 Verificación Conectividad**
+- **Archivo:** `project-organization/testing/test-connectivity-vpn.js`
+- **Función:** Diagnosticar VPN y puertos
+- **Uso:** Automático con múltiples verificaciones
+
+## 📈 **RESULTADOS CONFIRMADOS**
+
+### ✅ **Sistema Funcional**
+- **🔗 Conectividad VPN:** PC ↔ IoT confirmada
+- **📤 CMD 11:** Comandos procesados correctamente
+- **📡 Captura ZPL:** Etiquetas RFID completas (263 bytes)
+- **🏷️ Datos extraídos:** GS1, contadores, RFID data
+- **💾 Descarga:** Archivos .zpl completos
+
+### 📋 **Ejemplo de Captura**
+```
+🏷️ GS1 CODE: (01)03531520010264(17)300721(10)782520200(21)0005
+🔢 CONTADOR: 0005
+📄 RFID DATA: AD002818496B17767323030005000000
+📏 TAMAÑO: 263 bytes ZPL
+🔗 ORIGEN: IoT 100.125.112.37 vía VPN
+```
+
+## 🎯 **TECNOLOGÍAS**
+
+- **Node.js** - Runtime principal
+- **Express.js** - Servidor web
+- **Socket.io** - Comunicación tiempo real  
+- **TCP/IP** - Comunicación PLC/Impresoras
+- **ZPL** - Lenguaje etiquetas Zebra
+- **VPN** - Conectividad remota
+
+## 👥 **EQUIPO**
+
+**Desarrollado por:** [Automática Integral](https://github.com/AutomaticaIntegral)  
+**Cliente:** ADISSEO  
+**Sistema:** IoT2050 Label Transfer System  
+
+## 📞 **SOPORTE**
+
+Para soporte técnico:
+1. Ver [documentación completa](project-organization/documentation/DOCUMENTACION-COMPLETA-SESIONES.md)
+2. Revisar [scripts disponibles](project-organization/documentation/README-SCRIPTS.md)
+3. Consultar [proceso ADISSEO](project-organization/documentation/PROCESO-COMPLETO-ADISSEO.md)
+
+---
+
+**✅ Sistema completo implementado y funcionando**  
+**🏭 En producción en IoT2050**  
+**🧪 Con herramientas completas de testing**  
+**📚 Documentación exhaustiva incluida**
