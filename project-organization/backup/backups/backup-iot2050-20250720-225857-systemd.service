@@ -1,0 +1,17 @@
+[Unit]
+Description=TCP Label Transfer IOT Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/tcp-label-transfer
+ExecStart=/usr/bin/node /opt/tcp-label-transfer/index.js
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=tcp-label-transfer
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,8 @@
 /**
  * Servidor web para monitoreo y API
- * Cliente: Adisseo
- * Proyecto: TCP Label Transfer
+ * Cliente: ADISSEO
+ * Desarrollador: Automática Integral
+ * Proyecto: IoT Label Transfer System - Plataforma de Monitoreo Industrial
  */
 
 const express = require('express');
@@ -230,6 +231,215 @@ app.post('/api/labels/:id/print', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// API para obtener archivos ZPL enviados a impresoras
+app.get('/api/printer-files', (req, res) => {
+  log('Solicitud API recibida: GET /api/printer-files', 'MONITOR');
+  
+  try {
+    const zplPath = path.join(__dirname, '../../data/zpl');
+    
+    if (!fs.existsSync(zplPath)) {
+      return res.json([]);
+    }
+    
+    const files = fs.readdirSync(zplPath)
+      .filter(file => file.endsWith('.txt'))
+      .map(file => {
+        const filePath = path.join(zplPath, file);
+        const stats = fs.statSync(filePath);
+        
+        // Extraer timestamp del nombre del archivo (zpl-timestamp.txt)
+        const timestampMatch = file.match(/zpl-(\d+)\.txt/);
+        const timestamp = timestampMatch ? parseInt(timestampMatch[1]) : stats.mtimeMs;
+        
+        // Detectar tipo de etiqueta basado en tamaño del archivo
+        // RFID: menos de 400 bytes
+        // Normal: más de 500 bytes
+        let labelType = 'normal';
+        let printerTarget = 'producto';
+        
+        if (stats.size < 400) {
+          labelType = 'rfid';
+          printerTarget = 'rfid';
+        } else if (stats.size > 500) {
+          labelType = 'normal';
+          printerTarget = 'producto';
+        } else {
+          // Tamaño intermedio: revisar contenido como fallback
+          try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            
+            // Detectar RFID por comandos específicos
+            if (content.includes('^RFW') || content.includes('^HV') || content.includes('RFID')) {
+              labelType = 'rfid';
+              printerTarget = 'rfid';
+            } else if (content.includes('^PQ1')) {
+              labelType = 'rfid'; // Las etiquetas IBC suelen ser ^PQ1
+              printerTarget = 'rfid';
+            } else if (content.includes('^PQ4')) {
+              labelType = 'normal'; // Las etiquetas bidón suelen ser ^PQ4
+              printerTarget = 'producto';
+            }
+            
+          } catch (error) {
+            // Si no puede leer el archivo, usar tamaño como criterio final
+            labelType = stats.size < 450 ? 'rfid' : 'normal';
+            printerTarget = labelType === 'rfid' ? 'rfid' : 'producto';
+            log(`Error al leer archivo ZPL ${file}: ${error.message}`, 'MONITOR', 'warn');
+          }
+        }
+        
+        return {
+          id: file.replace('.txt', ''),
+          filename: file,
+          timestamp: new Date(timestamp).toISOString(),
+          size: stats.size,
+          created: stats.birthtime.toISOString(),
+          labelType: labelType,
+          printerTarget: printerTarget,
+          isRfid: labelType === 'rfid'
+        };
+      })
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 100); // Limitar a últimos 100 archivos
+    
+    res.json(files);
+  } catch (error) {
+    log(`Error al obtener archivos ZPL: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al obtener archivos de impresora' });
+  }
+});
+
+// API para obtener contenido de un archivo ZPL específico
+app.get('/api/printer-files/:filename', (req, res) => {
+  const filename = req.params.filename;
+  log(`Solicitud API recibida: GET /api/printer-files/${filename}`, 'MONITOR');
+  
+  try {
+    const zplPath = path.join(__dirname, '../../data/zpl');
+    const filePath = path.join(zplPath, filename + '.txt');
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archivo no encontrado' });
+    }
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    const stats = fs.statSync(filePath);
+    
+    res.json({
+      filename: filename + '.txt',
+      content: content,
+      size: stats.size,
+      created: stats.birthtime.toISOString()
+    });
+  } catch (error) {
+    log(`Error al leer archivo ZPL: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al leer archivo' });
+  }
+});
+
+// API para obtener información de impresoras
+app.get('/api/printers-info', (req, res) => {
+  log('Solicitud API recibida: GET /api/printers-info', 'MONITOR');
+  
+  try {
+    const printersInfo = {
+      product: {
+        name: 'Impresora Producto',
+        host: config.PRODUCT_PRINTER_HOST,
+        port: config.PRODUCT_PRINTER_PORT,
+        type: 'Etiquetas Normales',
+        status: 'online', // En un entorno real, esto se verificaría con ping
+        description: 'Impresora principal para etiquetas de bidones'
+      },
+      rfid: {
+        name: 'Impresora RFID',
+        host: config.RFID_PRINTER_HOST,
+        port: config.RFID_PRINTER_PORT,
+        type: 'Etiquetas RFID',
+        status: 'online',
+        description: 'Impresora especializada para etiquetas IBC con RFID'
+      }
+    };
+    
+    res.json(printersInfo);
+  } catch (error) {
+    log(`Error al obtener información de impresoras: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al obtener información de impresoras' });
+  }
+});
+
+// API para actualizar configuración de impresoras
+app.post('/api/printers-config', (req, res) => {
+  log('Solicitud API recibida: POST /api/printers-config', 'MONITOR');
+  
+  try {
+    const { productPrinter, rfidPrinter } = req.body;
+    
+    // Validaciones básicas
+    if (!productPrinter || !rfidPrinter) {
+      return res.status(400).json({ error: 'Configuración incompleta' });
+    }
+    
+    // Validar IPs
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$|^localhost$/;
+    if (!ipRegex.test(productPrinter.host) || !ipRegex.test(rfidPrinter.host)) {
+      return res.status(400).json({ error: 'Dirección IP inválida' });
+    }
+    
+    // Validar puertos
+    if (productPrinter.port < 1 || productPrinter.port > 65535 ||
+        rfidPrinter.port < 1 || rfidPrinter.port > 65535) {
+      return res.status(400).json({ error: 'Puerto inválido (1-65535)' });
+    }
+    
+    // Actualizar configuración en memoria (temporal)
+    config.PRODUCT_PRINTER_HOST = productPrinter.host;
+    config.PRODUCT_PRINTER_PORT = productPrinter.port;
+    config.RFID_PRINTER_HOST = rfidPrinter.host;
+    config.RFID_PRINTER_PORT = rfidPrinter.port;
+    
+    // Guardar en archivo de configuración
+    const envPath = path.join(__dirname, '../../env.production');
+    let envContent = '';
+    
+    if (fs.existsSync(envPath)) {
+      envContent = fs.readFileSync(envPath, 'utf8');
+    }
+    
+    // Actualizar o añadir líneas de configuración
+    const updateEnvVar = (content, key, value) => {
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+      const newLine = `${key}=${value}`;
+      
+      if (regex.test(content)) {
+        return content.replace(regex, newLine);
+      } else {
+        return content + '\n' + newLine;
+      }
+    };
+    
+    envContent = updateEnvVar(envContent, 'PRINTER_PRODUCT_IP', productPrinter.host);
+    envContent = updateEnvVar(envContent, 'PRINTER_PRODUCT_PORT', productPrinter.port);
+    envContent = updateEnvVar(envContent, 'PRINTER_RFID_IP', rfidPrinter.host);
+    envContent = updateEnvVar(envContent, 'PRINTER_RFID_PORT', rfidPrinter.port);
+    
+    fs.writeFileSync(envPath, envContent);
+    
+    log(`Configuración de impresoras actualizada: Producto ${productPrinter.host}:${productPrinter.port}, RFID ${rfidPrinter.host}:${rfidPrinter.port}`, 'MONITOR', 'success');
+    
+    res.json({
+      success: true,
+      message: 'Configuración de impresoras actualizada correctamente',
+      restart_required: true
+    });
+    
+  } catch (error) {
+    log(`Error al actualizar configuración de impresoras: ${error.message}`, 'MONITOR', 'error');
+    res.status(500).json({ error: 'Error al guardar configuración' });
   }
 });
 

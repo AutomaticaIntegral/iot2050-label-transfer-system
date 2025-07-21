@@ -9,7 +9,7 @@ function loadLabels() {
     fetch('/api/labels')
         .then(response => response.json())
         .then(labels => {
-            const tableBody = document.querySelector('table tbody');
+            const tableBody = document.querySelector('#labelsTableBody');
             if (!tableBody) return;
             
             tableBody.innerHTML = '';
@@ -42,30 +42,40 @@ function loadLabels() {
                 }
                 
                 // Formatear fecha correctamente
-                let formattedDate = 'Invalid Date';
+                let formattedDate = '-';
                 try {
                     if (label.timestamp) {
-                        console.log('Processing timestamp:', label.timestamp);
                         const date = new Date(label.timestamp);
-                        console.log('Parsed date:', date);
                         if (date && !isNaN(date.getTime())) {
-                            formattedDate = date.toLocaleDateString('es-ES') + ' ' + date.toLocaleTimeString('es-ES');
-                            console.log('Formatted date:', formattedDate);
+                            formattedDate = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                         } else {
-                            console.error('Invalid date object for timestamp:', label.timestamp);
+                            // Intentar parsear timestamp como número
+                            const numericTimestamp = parseInt(label.timestamp);
+                            if (!isNaN(numericTimestamp)) {
+                                const dateFromNumber = new Date(numericTimestamp);
+                                if (!isNaN(dateFromNumber.getTime())) {
+                                    formattedDate = dateFromNumber.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                }
+                            }
                         }
                     }
                 } catch (e) {
-                    console.error('Error parsing date:', label.timestamp, e);
+                    formattedDate = '-';
                 }
                 
                 row.innerHTML = `
-                    <td>${label.id || '-'}</td>
+                    <td><code>${label.id || '-'}</code></td>
                     <td>${formattedDate}</td>
-                    <td>${label.size || 0} bytes</td>
-                    <td><span class="badge ${labelType.includes('Bidón') ? 'bg-primary' : (labelType.includes('RFID') ? 'bg-warning' : 'bg-success')}">${labelType}</span></td>
+                    <td><span class="badge bg-primary">ADI</span></td>
+                    <td>${((label.size || 0) / 1024).toFixed(1)} KB</td>
+                    <td><span class="badge bg-success">Procesada</span></td>
                     <td>
-                        <button class="btn btn-sm btn-info view-label" data-id="${label.id}">Ver</button>
+                        <button class="btn btn-sm btn-outline-primary view-label" data-id="${label.id}">
+                            <i class="bi bi-eye"></i> Ver
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="printLabel('${label.id}')">
+                            <i class="bi bi-printer"></i> Imprimir
+                        </button>
                     </td>
                 `;
                 

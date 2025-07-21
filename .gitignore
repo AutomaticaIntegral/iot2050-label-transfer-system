@@ -1,38 +1,34 @@
-# Dependency directories
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# Environment files (sensitive)
+.env
+.env.local
+.env.production
+.env.test
 
-# Coverage directory used by tools like istanbul
-coverage/
+# Data files (sensitive/large)
+data/labels.json
+data/counter.txt
+data/rfid-counter.txt
+data/messageid_FORCE.txt
+data/system-config.json
+data/received_files/
+data/zpl/*.txt
 
-# Logs (keeping for production samples as requested)
-# logs
-# *.log
+# Logs
+*.log
+logs/
+process.log
 
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# Environment variables (keeping samples)
-# .env
-# .env.local
-# .env.production
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
 
 # IDE files
 .vscode/
@@ -40,19 +36,11 @@ coverage/
 *.swp
 *.swo
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Testing output
+test-output/
+*.test.result
 
-# Temporary files
-*.tmp
-*.temp
-
-# But keep the data folder with samples
-!data/
-!data/** 
+# Backup files
+*.bak
+*.backup
+*~ 

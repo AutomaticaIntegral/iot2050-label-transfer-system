@@ -193,6 +193,9 @@ function incrementRfidCounter(currentRfidCounter) {
   }
 }
 
+// Cache para prevenir duplicación de archivos ZPL
+const zplCache = new Map();
+
 /**
  * Guarda el comando ZPL en un archivo
  * @param {string} zplCommand - Comando ZPL a guardar
@@ -200,6 +203,30 @@ function incrementRfidCounter(currentRfidCounter) {
  */
 function saveZplCommand(zplCommand) {
   try {
+    // Crear hash del contenido para detectar duplicados
+    const crypto = require('crypto');
+    const contentHash = crypto.createHash('md5').update(zplCommand).digest('hex');
+    const now = Date.now();
+    
+    // Verificar si ya guardamos este contenido recientemente (últimos 5 segundos)
+    if (zplCache.has(contentHash)) {
+      const lastSaved = zplCache.get(contentHash);
+      if (now - lastSaved < 5000) {
+        log(`Comando ZPL duplicado detectado, omitiendo guardado (último guardado hace ${now - lastSaved}ms)`, 'SERVER', 'warn');
+        return null;
+      }
+    }
+    
+    // Actualizar cache
+    zplCache.set(contentHash, now);
+    
+    // Limpiar cache antiguo (más de 1 minuto)
+    for (const [hash, timestamp] of zplCache.entries()) {
+      if (now - timestamp > 60000) {
+        zplCache.delete(hash);
+      }
+    }
+    
     const timestamp = Date.now();
     const zplFile = path.join(config.ZPL_DIR, `zpl-${timestamp}.txt`);
     fs.writeFileSync(zplFile, zplCommand);

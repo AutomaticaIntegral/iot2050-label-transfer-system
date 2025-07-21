@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="es">
+<!--
+    Dashboard Principal - Sistema de Etiquetas IoT
+    Cliente: ADISSEO
+    Desarrollador: Automática Integral
+    Sistema: IoT Label Transfer System - Plataforma de Monitoreo Industrial
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Principal - Sistema de Etiquetas IoT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .dashboard-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            width: 100%;
+            max-width: 900px;
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 3rem;
+        }
+
+        .main-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+        }
+
+        .system-info {
+            display: inline-block;
+            background: #ecf0f1;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            color: #34495e;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .monitors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .monitor-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .monitor-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+
+        .monitor-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .monitor-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .monitor-description {
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .monitor-features {
+            text-align: left;
+            margin-bottom: 2rem;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            color: #34495e;
+            font-size: 0.9rem;
+        }
+
+        .feature-icon {
+            margin-right: 0.5rem;
+            color: #27ae60;
+        }
+
+        .access-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .access-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .access-btn:active {
+            transform: scale(0.98);
+        }
+
+        .credentials-section {
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .credentials-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #856404;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .credentials-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .credential-field {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+        }
+
+        .credential-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #856404;
+            margin-bottom: 0.5rem;
+        }
+
+        .credential-input {
+            padding: 0.75rem;
+            border: 2px solid #ffeaa7;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            color: #2c3e50;
+        }
+
+        .credential-input:focus {
+            outline: none;
+            border-color: #f39c12;
+        }
+
+        .credentials-note {
+            font-size: 0.8rem;
+            color: #856404;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .footer {
+            padding-top: 2rem;
+            border-top: 1px solid #ecf0f1;
+            color: #95a5a6;
+            font-size: 0.9rem;
+        }
+
+        .version-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .quick-btn {
+            background: #34495e;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .quick-btn:hover {
+            background: #2c3e50;
+            transform: translateY(-2px);
+        }
+
+        /* Estilos para autenticación del dashboard */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            padding: 3rem;
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-subtitle {
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        .login-form {
+            text-align: left;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #34495e;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+            background: #fafafa;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+
+        .form-input::placeholder {
+            color: #95a5a6;
+        }
+
+        .login-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63384;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border: 1px solid #f8d7da;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .security-note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 2rem;
+            }
+
+            .main-title {
+                font-size: 2rem;
+            }
+
+            .monitors-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+
+            .credentials-form {
+                grid-template-columns: 1fr;
+            }
+
+            .version-info {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .quick-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            /* Responsive para modal de login */
+            .login-container {
+                padding: 2rem;
+                margin: 1rem;
+            }
+
+            .login-title {
+                font-size: 1.5rem;
+            }
+
+            .login-subtitle {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Overlay de autenticación -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-container">
+            <div class="login-title">🔐 Acceso Seguro</div>
+            <div class="login-subtitle">Dashboard Principal - Sistema IoT ADISSEO</div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="dashboardUsername" class="form-label">Usuario</label>
+                    <input type="text" id="dashboardUsername" class="form-input" 
+                           placeholder="Ingrese su usuario" required autofocus>
+                </div>
+                
+                <div class="form-group">
+                    <label for="dashboardPassword" class="form-label">Contraseña</label>
+                    <input type="password" id="dashboardPassword" class="form-input" 
+                           placeholder="Ingrese su contraseña" required>
+                </div>
+                
+                <button type="submit" class="login-btn">🚀 Acceder al Dashboard</button>
+                
+                <div id="loginError" class="error-message">
+                    ❌ Usuario o contraseña incorrectos
+                </div>
+            </form>
+            
+            <div class="security-note">
+                🛡️ <strong>Acceso Restringido:</strong> Este dashboard controla sistemas críticos de producción. 
+                Solo personal autorizado puede acceder.
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido principal (oculto hasta autenticación) -->
+    <div id="mainDashboard" class="dashboard-container hidden">
+        <div class="header">
+            <h1 class="main-title">🏭 Sistema de Etiquetas IoT</h1>
+            <div class="subtitle">Panel de Control Principal</div>
+            <div class="system-info">🔗 ADISSEO - Plataforma de Monitoreo IoT</div>
+        </div>
+
+        <div class="credentials-section">
+            <div class="credentials-title">
+                🔐 Credenciales de Acceso
+            </div>
+            <div class="credentials-form">
+                <div class="credential-field">
+                    <label class="credential-label">Usuario</label>
+                    <input type="text" class="credential-input" id="username" placeholder="••••••••" readonly>
+                </div>
+                <div class="credential-field">
+                    <label class="credential-label">Contraseña</label>
+                    <input type="password" class="credential-input" id="password" placeholder="••••••••••••" readonly>
+                </div>
+            </div>
+            <div class="credentials-note">
+                ℹ️ Las credenciales se aplicarán automáticamente al acceder a los monitores
+            </div>
+        </div>
+
+        <div class="monitors-grid">
+            <!-- Monitor Simple de Etiquetas -->
+            <div class="monitor-card">
+                <div class="monitor-icon">🏷️</div>
+                <div class="monitor-title">Monitor de Etiquetas</div>
+                <div class="monitor-description">
+                    Visualización en tiempo real de todas las etiquetas procesadas en el sistema
+                </div>
+                <div class="monitor-features">
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Listado completo de etiquetas</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Estadísticas en tiempo real</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Autenticación segura</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Auto-refresh automático</span>
+                    </div>
+                </div>
+                <button class="access-btn" onclick="accessMonitor('simple')">
+                    🚀 Acceder al Monitor de Etiquetas
+                </button>
+            </div>
+
+            <!-- Monitor de Impresoras -->
+            <div class="monitor-card">
+                <div class="monitor-icon">🖨️</div>
+                <div class="monitor-title">Monitor de Impresoras</div>
+                <div class="monitor-description">
+                    Dashboard avanzado para gestión y monitoreo de impresoras con configuración
+                </div>
+                <div class="monitor-features">
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Estado de impresoras en vivo</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Archivos ZPL enviados</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">✅</span>
+                        <span>Filtros RFID vs Normal</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">⚙️</span>
+                        <span>Configuración de IPs/Puertos</span>
+                    </div>
+                </div>
+                <button class="access-btn" onclick="accessMonitor('printer')">
+                    🚀 Acceder al Monitor de Impresoras
+                </button>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <button class="quick-btn" onclick="showCredentials()">👁️ Mostrar Credenciales</button>
+            <button class="quick-btn" onclick="refreshStatus()">🔄 Verificar Estado</button>
+            <button class="quick-btn" onclick="openDocs()">📚 Documentación</button>
+            <button class="quick-btn" onclick="logoutDashboard()" style="background: #e74c3c;">🚪 Cerrar Sesión</button>
+        </div>
+
+        <div class="footer">
+            <div class="version-info">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Sistema Activo</span>
+                </div>
+                <div>v2.0.0 - Dashboard Integrado</div>
+                <div>🏭 ADISSEO IoT System</div>
+            </div>
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #ecf0f1; font-size: 0.8rem; color: #bdc3c7; text-align: center;">
+                Desarrollado por <strong>Automática Integral</strong> para ADISSEO
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Credenciales por defecto (ocultas)
+        const defaultCredentials = {
+            username: 'admin',
+            password: 'admin123'
+        };
+
+        // Variables de autenticación del dashboard
+        let isDashboardAuthenticated = false;
+
+        // Funciones de autenticación del dashboard
+        function checkDashboardAuth() {
+            const authData = sessionStorage.getItem('dashboardAuth');
+            if (authData) {
+                try {
+                    const { timestamp, username } = JSON.parse(authData);
+                    const now = Date.now();
+                    
+                    // Verificar que la sesión no haya expirado (2 horas)
+                    if (now - timestamp < 7200000 && username === defaultCredentials.username) {
+                        return true;
+                    }
+                } catch (error) {
+                    console.log('Error parsing dashboard auth');
+                }
+                // Limpiar sesión expirada
+                sessionStorage.removeItem('dashboardAuth');
+            }
+            return false;
+        }
+
+        function setDashboardAuth() {
+            sessionStorage.setItem('dashboardAuth', JSON.stringify({
+                username: defaultCredentials.username,
+                timestamp: Date.now()
+            }));
+        }
+
+        function dashboardLogin(username, password) {
+            return username === defaultCredentials.username && password === defaultCredentials.password;
+        }
+
+        function logoutDashboard() {
+            sessionStorage.removeItem('dashboardAuth');
+            sessionStorage.removeItem('autoLogin'); // Limpiar auto-login también
+            isDashboardAuthenticated = false;
+            showLoginOverlay();
+        }
+
+        function showLoginOverlay() {
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            document.getElementById('mainDashboard').classList.add('hidden');
+            document.getElementById('dashboardUsername').focus();
+        }
+
+        function hideLoginOverlay() {
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('mainDashboard').classList.remove('hidden');
+            isDashboardAuthenticated = true;
+        }
+
+        // Inicializar campos con credenciales ocultas
+        function initializeCredentials() {
+            document.getElementById('username').value = defaultCredentials.username;
+            document.getElementById('password').value = defaultCredentials.password;
+        }
+
+        // Función para acceder a los monitores
+        function accessMonitor(type) {
+            // Verificar que el dashboard esté autenticado
+            if (!isDashboardAuthenticated) {
+                alert('❌ Error: Debe autenticarse en el dashboard primero');
+                return;
+            }
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // Guardar credenciales en sessionStorage para auto-login
+            sessionStorage.setItem('autoLogin', JSON.stringify({
+                username: username,
+                password: password,
+                timestamp: Date.now()
+            }));
+
+            // Redirigir al monitor correspondiente
+            if (type === 'simple') {
+                window.open('/monitor-simple.html', '_blank');
+            } else if (type === 'printer') {
+                window.open('/printer-monitor.html', '_blank');
+            }
+        }
+
+        // Mostrar/ocultar credenciales
+        function showCredentials() {
+            const usernameField = document.getElementById('username');
+            const passwordField = document.getElementById('password');
+            
+            if (usernameField.type === 'text') {
+                // Ocultar credenciales
+                usernameField.placeholder = '••••••••';
+                passwordField.placeholder = '••••••••••••';
+                usernameField.value = defaultCredentials.username;
+                passwordField.value = defaultCredentials.password;
+                event.target.textContent = '👁️ Mostrar Credenciales';
+            } else {
+                // Mostrar credenciales
+                usernameField.placeholder = defaultCredentials.username;
+                passwordField.placeholder = defaultCredentials.password;
+                event.target.textContent = '🙈 Ocultar Credenciales';
+            }
+        }
+
+        // Verificar estado del sistema
+        async function refreshStatus() {
+            const statusDot = document.querySelector('.status-dot');
+            const statusText = document.querySelector('.status-indicator span');
+            
+            try {
+                statusText.textContent = 'Verificando...';
+                statusDot.style.background = '#f39c12';
+                
+                const response = await fetch('/api/labels');
+                if (response.ok) {
+                    statusText.textContent = 'Sistema Activo';
+                    statusDot.style.background = '#27ae60';
+                } else {
+                    throw new Error('Error en la respuesta');
+                }
+            } catch (error) {
+                statusText.textContent = 'Sistema Inactivo';
+                statusDot.style.background = '#e74c3c';
+            }
+        }
+
+        // Abrir documentación (placeholder)
+        function openDocs() {
+            alert('📚 Documentación disponible en CAMBIOS-APLICAR-IOT.md\n\n🔗 Próximamente: Portal de documentación web');
+        }
+
+        // Efectos de animación para botones
+        document.querySelectorAll('.access-btn').forEach(btn => {
+            btn.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.05)';
+            });
+            
+            btn.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+        });
+
+        // Event listener para el formulario de login del dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configurar formulario de login
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('dashboardUsername').value;
+                const password = document.getElementById('dashboardPassword').value;
+                
+                if (dashboardLogin(username, password)) {
+                    setDashboardAuth();
+                    hideLoginOverlay();
+                    initializeCredentials();
+                    refreshStatus();
+                    document.getElementById('loginError').style.display = 'none';
+                } else {
+                    document.getElementById('loginError').style.display = 'block';
+                    document.getElementById('dashboardPassword').value = '';
+                    document.getElementById('dashboardPassword').focus();
+                }
+            });
+
+            // Verificar autenticación existente
+            if (checkDashboardAuth()) {
+                hideLoginOverlay();
+                initializeCredentials();
+                refreshStatus();
+            } else {
+                showLoginOverlay();
+            }
+
+            // Manejar tecla ESC para información (no permitir cerrar login)
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && isDashboardAuthenticated) {
+                    // Solo permitir ESC si ya está autenticado
+                    // (agregar aquí funcionalidad futura si se necesita)
+                }
+            });
+        });
+
+        // Auto-refresh del estado cada 30 segundos (solo si está autenticado)
+        setInterval(function() {
+            if (isDashboardAuthenticated) {
+                refreshStatus();
+            }
+        }, 30000);
+    </script>
+</body>
+</html> 

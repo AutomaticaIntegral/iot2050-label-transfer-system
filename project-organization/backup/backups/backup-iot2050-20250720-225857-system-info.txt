@@ -1,0 +1,5 @@
+=== INFORMACIÓN DEL SISTEMA ===
+Linux iot2050-debian 5.10.104-cip3 #1 SMP PREEMPT Thu Oct 20 08:51:46 UTC 2022 aarch64 GNU/Linux
+Sun 20 Jul 2025 11:01:21 PM CEST
+root         495  0.0 12.0 1226220 114452 ?      Ssl  Jul18   0:29 node-red
+root      177338  0.0  0.0   6352   756 ?        S    23:01   0:00 grep node

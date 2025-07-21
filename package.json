@@ -1,23 +1,37 @@
 {
   "name": "iot2050-simulator",
   "version": "1.0.0",
-  "description": "Simulador del dispositivo IOT2050 para TCP Label Transfer de Adisseo",
+  "description": "Simulador híbrido para IOT2050 - Cliente Adisseo",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "simulator": "node printer-simulator.js",
+    "test-simulator": "node test-simulator.js",
     "dev": "nodemon index.js",
-    "check": "node check-system.js"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:local": "node setup-local-testing.js && npm start",
+    "cmd11": "node test-cmd11-local.js",
+    "test:cmd11": "node test-cmd11-local.js localhost 9200",
+    "simulator:remote": "node simulator-remote.js",
+    "cmd11:iot": "node test-cmd11-local.js 192.168.214.50 9200",
+    "simulator:vpn": "node simulator-vpn.js",
+    "cmd11:vpn": "node test-cmd11-local.js 192.168.214.50 9200"
   },
+  "keywords": [
+    "iot",
+    "tcp",
+    "label",
+    "printer",
+    "adisseo"
+  ],
+  "author": "Automática Integral",
+  "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
     "express": "^4.18.2",
-    "socket.io": "^4.5.4"
+    "socket.io": "^4.7.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
-    "nodemon": "^2.0.20"
-  },
-  "engines": {
-    "node": ">=12.0.0"
+    "nodemon": "^3.0.1"
   }
 }
