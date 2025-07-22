@@ -258,35 +258,54 @@ function convertCounterToHex(counter) {
  */
 function updateRfidMemoryWithCounter(zplCommand, newCounter) {
   try {
+    // 🔧 FASE 2: REGEX MEJORADO - SOPORTE MÚLTIPLES COMANDOS RFID
+    let updatedZpl = zplCommand;
+    let totalUpdateCount = 0;
+    
     // Convertir contador a hexadecimal
     const hexCounter = convertCounterToHex(newCounter);
+    log(`🔍 Iniciando actualización RFID con contador hex: ${hexCounter}`, 'SERVER', 'info');
     
-    // Patrón para encontrar comandos RFW,H,2,16,1 (memoria 2, 16 bytes)
-    // Busca: ^RFW,H,2,16,1^FDAD...seguido de datos...^FS
-    // Formato: AD0028184969F7767203030(001)000000
-    // Grupos: (prefijo 23 chars)(contador 3 chars)(sufijo 6 chars)
-    const rfidMemoryRegex = /(\^RFW,H,2,16,1\^FD[A-F0-9]{23})([A-F0-9]{3})([A-F0-9]{6}\^FS)/g;
+    // ✅ SOLO Memoria 2: La Memoria 1 (4000) debe mantenerse FIJA
+    const rfidPatterns = [
+      {
+        name: 'Memoria 2 (16 bytes)',
+        regex: /(\^RFW,H,2,16,1\^FD[A-F0-9]{23})([A-F0-9]{3})([A-F0-9]{6}\^FS)/g,
+        counterLength: 3
+      }
+    ];
     
-    let updatedZpl = zplCommand;
-    let updateCount = 0;
-    
-    // Reemplazar el contador en la memoria RFID
-    updatedZpl = updatedZpl.replace(rfidMemoryRegex, (match, prefix, oldHexCounter, suffix) => {
-      updateCount++;
-      log(`🔧 Actualizando memoria RFID: ${oldHexCounter} → ${hexCounter}`, 'SERVER', 'info');
-      return prefix + hexCounter + suffix;
+    // Procesar cada patrón RFID
+    rfidPatterns.forEach(pattern => {
+      const matches = [...updatedZpl.matchAll(pattern.regex)];
+      
+      if (matches.length > 0) {
+        const paddedHex = hexCounter.padStart(pattern.counterLength, '0').toUpperCase();
+        
+        updatedZpl = updatedZpl.replace(pattern.regex, (match, prefix, oldHexCounter, suffix) => {
+          totalUpdateCount++;
+          log(`🔧 ${pattern.name}: ${oldHexCounter} → ${paddedHex}`, 'SERVER', 'info');
+          return prefix + paddedHex + suffix;
+        });
+        
+        log(`✅ ${pattern.name}: ${matches.length} comando(s) actualizado(s)`, 'SERVER', 'success');
+      } else {
+        log(`ℹ️ ${pattern.name}: No se encontraron comandos para actualizar`, 'SERVER', 'info');
+      }
     });
     
-    if (updateCount > 0) {
-      log(`✅ Memoria RFID actualizada en ${updateCount} comando(s)`, 'SERVER', 'success');
+    // Resumen final
+    if (totalUpdateCount > 0) {
+      log(`🎯 TOTAL: ${totalUpdateCount} comando(s) RFID actualizados exitosamente`, 'SERVER', 'success');
     } else {
-      log(`ℹ️ No se encontraron comandos RFW,H,2,16,1 para actualizar`, 'SERVER', 'info');
+      log(`⚠️ ADVERTENCIA: No se encontraron comandos RFID para actualizar`, 'SERVER', 'warn');
+      // NO lanzar error aquí, dejar que la validación post-procesamiento lo maneje
     }
     
     return updatedZpl;
   } catch (error) {
     log(`❌ Error al actualizar memoria RFID: ${error.message}`, 'SERVER', 'error');
-    return zplCommand; // Devolver original en caso de error
+    throw error; // ✅ NUEVO: Lanzar error para que sea capturado en validación
   }
 }
 

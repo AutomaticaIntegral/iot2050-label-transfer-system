@@ -335,84 +335,171 @@ function handleRfidPrintCommand(socket, command, messageId) {
   // ✅ LÓGICA: CMD 11 usa SOLO etiquetas RFID (función original restaurada)
   const lastRfidLabel = getLastRfidLabelInfo();
   
-  if (lastRfidLabel) {
-    log('[PLC] 🏷️ CMD 11: Usando última etiqueta RFID', 'PLC', 'info');
-    
-    const labelType = 'RFID';
-    const printerTarget = 'RFID';
-    
-    // IMPORTANTE: Enviar exactamente la misma etiqueta ZPL que llegó del ERP
-    const originalZplCommand = lastRfidLabel.zpl || '';
-    
-    if (originalZplCommand) {
-      log(`[PLC] 🖨️ Enviando a impresora ${printerTarget} con contador del PLC: ${normalizedCounter}`, 'PLC', 'success');
-      
-      // Reemplazar el contador en el ZPL original con el contador del PLC y sincronizar memoria RFID
-      const updatedZpl = updateCounterAndRfidMemory(originalZplCommand, normalizedCounter);
-      
-      // Enviar a impresora RFID - Siempre imprimimos, sea duplicado o no
-      printToRfidPrinter(updatedZpl)
-        .then(() => {
-          
-          // Obtener el número de copias desde la etiqueta
-          const copies = lastRfidLabel.copies || 1;
-          
-          // Responder al PLC con el nuevo formato
-          socket.write(JSON.stringify({
-            status: 'success',
-            code: isDuplicate ? 'DUPLICATE_MESSAGEID' : 'PRINT_OK',
-            messageId: messageId,
-            labelType: labelType,
-            gs1: baseBarcode + normalizedCounter,  // ← GS1 con contador del PLC
-            counterUsed: normalizedCounter,        // ← Contador usado del PLC
-            counterOriginal: plcCounter,           // ← Contador original del PLC
-            copies: copies,
-            printerTarget: printerTarget,
-            isDuplicate: isDuplicate
-          }) + '#');
-          
-          if (isDuplicate) {
-            log(`[PLC] 🔄 Etiqueta ${labelType} con MessageID ${messageId} procesada como duplicada, contador PLC: ${normalizedCounter}`, 'PLC', 'warn');
-          } else {
-            log(`[PLC] ✅ Etiqueta ${labelType} con MessageID ${messageId} impresa correctamente con contador PLC: ${normalizedCounter}`, 'PLC', 'success');
-          }
-        })
-        .catch(error => {
-          log(`Error al imprimir: ${error.message}`, 'PLC', 'error');
-          socket.write(JSON.stringify({
-            status: 'error',
-            code: 'PRINT_ERROR',
-            messageId: messageId,
-            error: error.message,
-            counterUsed: normalizedCounter,
-            isDuplicate: isDuplicate
-          }) + '#');
-        });
-    } else {
-      // Si no hay ZPL original
-      log('[PLC] No se encontró ZPL original', 'PLC', 'error');
-      
-      socket.write(JSON.stringify({
-        status: 'error',
-        code: 'MISSING_ZPL',
-        messageId: messageId,
-        message: 'No se encontró contenido ZPL para la etiqueta',
-        labelType: labelType,
-        isDuplicate: isDuplicate
-      }) + '#');
-    }
-  } else {
-    log('[PLC] No hay etiqueta RFID pendiente del ERP', 'PLC', 'warn');
-    
+  // 🛡️ FASE 1A: VALIDACIÓN DE ENTRADA ESTRICTA
+  if (!lastRfidLabel) {
+    log('[PLC] ❌ CMD 11 RECHAZADO: No hay etiquetas RFID disponibles', 'PLC', 'error');
     socket.write(JSON.stringify({
-      status: 'warning',
-      code: 'NO_RFID_LABEL_INFO',
+      status: 'error',
+      code: 'NO_RFID_DATA_AVAILABLE',
+      message: 'No hay datos RFID disponibles para procesar',
       messageId: messageId,
-      message: 'No hay información de etiqueta RFID disponible',
-      labelType: 'RFID',
       isDuplicate: isDuplicate
     }) + '#');
+    return; // ❌ SALIR INMEDIATAMENTE
   }
+
+  const originalZplCommand = lastRfidLabel.zpl || '';
+  
+  if (!originalZplCommand || !originalZplCommand.includes('^RFW')) {
+    log('[PLC] ❌ CMD 11 RECHAZADO: ZPL no contiene comandos RFID válidos', 'PLC', 'error');
+    socket.write(JSON.stringify({
+      status: 'error',
+      code: 'INVALID_RFID_ZPL',
+      message: 'El ZPL disponible no contiene comandos RFID válidos',
+      messageId: messageId,
+      isDuplicate: isDuplicate
+    }) + '#');
+    return; // ❌ SALIR INMEDIATAMENTE
+  }
+
+  log('[PLC] 🏷️ CMD 11: Usando última etiqueta RFID - Validación inicial exitosa', 'PLC', 'info');
+  
+  const labelType = 'RFID';
+  const printerTarget = 'RFID';
+  
+  log(`[PLC] 🖨️ Enviando a impresora ${printerTarget} con contador del PLC: ${normalizedCounter}`, 'PLC', 'success');
+  
+  // Reemplazar el contador en el ZPL original con el contador del PLC y sincronizar memoria RFID
+  const updatedZpl = updateCounterAndRfidMemory(originalZplCommand, normalizedCounter);
+  
+  // 🛡️ FASE 1B: VALIDACIÓN POST-PROCESAMIENTO
+  const originalRfidCount = (originalZplCommand.match(/\^RFW/g) || []).length;
+  const updatedRfidCount = (updatedZpl.match(/\^RFW/g) || []).length;
+  
+  if (originalRfidCount !== updatedRfidCount) {
+    log(`[PLC] ❌ INCONSISTENCIA DETECTADA: ${originalRfidCount} comandos RFID originales vs ${updatedRfidCount} procesados`, 'PLC', 'error');
+    socket.write(JSON.stringify({
+      status: 'error',
+      code: 'RFID_PROCESSING_ERROR',
+      message: `Inconsistencia en comandos RFID: ${originalRfidCount} originales vs ${updatedRfidCount} procesados`,
+      messageId: messageId,
+      isDuplicate: isDuplicate
+    }) + '#');
+    return; // ❌ NO ENVIAR A IMPRESORA
+  }
+  
+  if (originalRfidCount === 0) {
+    log(`[PLC] ❌ ERROR CRÍTICO: No se encontraron comandos RFID para validar`, 'PLC', 'error');
+    socket.write(JSON.stringify({
+      status: 'error',
+      code: 'NO_RFID_COMMANDS_FOUND',
+      message: 'No se encontraron comandos RFID en la etiqueta',
+      messageId: messageId,
+      isDuplicate: isDuplicate
+    }) + '#');
+    return; // ❌ NO ENVIAR A IMPRESORA
+  }
+  
+  // 🔍 VALIDACIÓN ADICIONAL: Verificar que el contador hexadecimal esté presente
+  const { convertCounterToHex } = require('../utils/zpl-utils');
+  const expectedHexCounter = convertCounterToHex(normalizedCounter).toUpperCase();
+  const hexCounterOccurrences = (updatedZpl.match(new RegExp(expectedHexCounter, 'g')) || []).length;
+  
+  if (hexCounterOccurrences === 0) {
+    log(`[PLC] ❌ VALIDACIÓN HEXADECIMAL FALLÓ: Contador ${normalizedCounter} (hex: ${expectedHexCounter}) no encontrado en ZPL actualizado`, 'PLC', 'error');
+    socket.write(JSON.stringify({
+      status: 'error',
+      code: 'HEX_COUNTER_NOT_FOUND',
+      message: `Contador hexadecimal ${expectedHexCounter} no encontrado en ZPL procesado`,
+      messageId: messageId,
+      isDuplicate: isDuplicate,
+      expectedCounter: normalizedCounter,
+      expectedHex: expectedHexCounter
+    }) + '#');
+    return; // ❌ NO ENVIAR A IMPRESORA
+  }
+  
+  log(`[PLC] ✅ VALIDACIÓN HEXADECIMAL EXITOSA: Contador ${expectedHexCounter} encontrado ${hexCounterOccurrences} vez(es)`, 'PLC', 'success');
+  
+  // 🔍 VALIDACIÓN CRUZADA: GS1 y Memoria 2 deben tener el MISMO contador
+  const gs1CounterMatch = updatedZpl.match(/\(21\)(\d{4})/);
+  const memory2CounterMatch = updatedZpl.match(/\^RFW,H,2,16,1\^FD[A-F0-9]{23}(\d{3})[A-F0-9]{6}\^FS/);
+
+  if (!gs1CounterMatch || !memory2CounterMatch) {
+    log(`[PLC] ❌ VALIDACIÓN CRUZADA FALLÓ: No se pudieron extraer contadores para comparar`, 'PLC', 'error');
+    socket.write(JSON.stringify({
+      status: 'error',
+      code: 'COUNTER_EXTRACTION_FAILED',
+      message: 'No se pudieron extraer contadores del GS1 y Memoria 2 para validación cruzada',
+      messageId: messageId,
+      isDuplicate: isDuplicate
+    }) + '#');
+    return; // ❌ NO ENVIAR A IMPRESORA
+  }
+
+  const gs1Counter = gs1CounterMatch[1];
+  const memory2CounterHex = memory2CounterMatch[1];
+  const memory2CounterDec = parseInt(memory2CounterHex, 10).toString().padStart(4, '0');
+
+  if (gs1Counter !== normalizedCounter || memory2CounterDec !== normalizedCounter) {
+    log(`[PLC] ❌ INCONSISTENCIA CRÍTICA DETECTADA:`, 'PLC', 'error');
+    log(`[PLC]   - PLC Counter: ${normalizedCounter}`, 'PLC', 'error');
+    log(`[PLC]   - GS1 Counter: ${gs1Counter}`, 'PLC', 'error');
+    log(`[PLC]   - Mem2 Counter: ${memory2CounterDec} (hex: ${memory2CounterHex})`, 'PLC', 'error');
+    socket.write(JSON.stringify({
+      status: 'error',
+      code: 'COUNTER_INCONSISTENCY_DETECTED',
+      message: `Inconsistencia crítica: PLC=${normalizedCounter}, GS1=${gs1Counter}, Memoria2=${memory2CounterDec}`,
+      messageId: messageId,
+      isDuplicate: isDuplicate,
+      plcCounter: normalizedCounter,
+      gs1Counter: gs1Counter,
+      memory2Counter: memory2CounterDec
+    }) + '#');
+    return; // ❌ NO ENVIAR A IMPRESORA
+  }
+
+  log(`[PLC] ✅ VALIDACIÓN CRUZADA EXITOSA: PLC=${normalizedCounter}, GS1=${gs1Counter}, Memoria2=${memory2CounterDec}`, 'PLC', 'success');
+  log(`[PLC] ✅ TODAS LAS VALIDACIONES EXITOSAS: ${originalRfidCount} comandos RFID procesados correctamente`, 'PLC', 'success');
+  
+  // Enviar a impresora RFID - Solo después de TODAS las validaciones exitosas
+  printToRfidPrinter(updatedZpl)
+    .then(() => {
+      
+      // Obtener el número de copias desde la etiqueta
+      const copies = lastRfidLabel.copies || 1;
+      
+      // Responder al PLC con el nuevo formato
+      socket.write(JSON.stringify({
+        status: 'success',
+        code: isDuplicate ? 'DUPLICATE_MESSAGEID' : 'PRINT_OK',
+        messageId: messageId,
+        labelType: labelType,
+        gs1: baseBarcode + normalizedCounter,  // ← GS1 con contador del PLC
+        counterUsed: normalizedCounter,        // ← Contador usado del PLC
+        counterOriginal: plcCounter,           // ← Contador original del PLC
+        copies: copies,
+        printerTarget: printerTarget,
+        isDuplicate: isDuplicate
+      }) + '#');
+      
+      if (isDuplicate) {
+        log(`[PLC] 🔄 Etiqueta ${labelType} con MessageID ${messageId} procesada como duplicada, contador PLC: ${normalizedCounter}`, 'PLC', 'warn');
+      } else {
+        log(`[PLC] ✅ Etiqueta ${labelType} con MessageID ${messageId} impresa correctamente con contador PLC: ${normalizedCounter}`, 'PLC', 'success');
+      }
+    })
+    .catch(error => {
+      log(`Error al imprimir: ${error.message}`, 'PLC', 'error');
+      socket.write(JSON.stringify({
+        status: 'error',
+        code: 'PRINT_ERROR',
+        messageId: messageId,
+        error: error.message,
+        counterUsed: normalizedCounter,
+        isDuplicate: isDuplicate
+      }) + '#');
+    });
 }
 
 /**
